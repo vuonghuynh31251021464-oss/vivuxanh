@@ -1,19 +1,11 @@
-git init
-git add .
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/USERNAME/ride-app.git
-git push -u origin main
-
+import streamlit as st
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import numpy as np
 from geopy.distance import geodesic
 import folium
 import random
-import tkinter as tk
-from tkinter import messagebox
-import webview
+from streamlit.components.v1 import html
 
 # ===== FUZZY SETUP =====
 friendliness = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'friendliness')
@@ -54,22 +46,15 @@ system = ctrl.ControlSystem(rules)
 # ===== USER LOCATION =====
 user_location = (10.7769, 106.7009)
 
-# ===== GLOBAL WINDOW =====
-map_window = None
+# ===== STREAMLIT UI =====
+st.title("🚗 Ride App AI")
 
-# ===== MAIN FUNCTION =====
-def find_driver():
-    global map_window
+f = st.slider("Friendliness", 0.0, 10.0, 5.0)
+p = st.slider("Privacy", 0.0, 10.0, 5.0)
+d = st.slider("Distance (km)", 0.0, 20.0, 5.0)
+c = st.slider("Budget", 0.0, 100.0, 50.0)
 
-    try:
-        f = float(entry_friend.get())
-        p = float(entry_privacy.get())
-        d = float(entry_distance.get())
-        c = float(entry_cost.get())
-    except:
-        messagebox.showerror("Lỗi", "Nhập số hợp lệ!")
-        return
-
+if st.button("Tìm xe"):
     # ===== FUZZY =====
     sim = ctrl.ControlSystemSimulation(system)
     sim.input['friendliness'] = f
@@ -78,7 +63,7 @@ def find_driver():
     sim.input['base_cost'] = c
     sim.compute()
 
-    v = sim.output['vehicle_type']
+    v = sim.output.get('vehicle_type', 5)
 
     if v < 4:
         best_vehicle = "BIKE 🏍️"
@@ -98,7 +83,6 @@ def find_driver():
         dist = geodesic(user_location, loc).km
         drivers.append((loc, veh, dist))
 
-    # ===== CHỌN DRIVER =====
     filtered = [x for x in drivers if x[1] == best_vehicle]
     if not filtered:
         filtered = drivers
@@ -106,9 +90,8 @@ def find_driver():
     best = min(filtered, key=lambda x: x[2])
     best_loc, best_v, best_dist = best
 
-    result_label.config(
-        text=f"Xe phù hợp: {best_vehicle}\nTài xế gần nhất: {round(best_dist,2)} km"
-    )
+    st.success(f"Xe phù hợp: {best_vehicle}")
+    st.info(f"Tài xế gần nhất: {round(best_dist,2)} km")
 
     # ===== MAP =====
     m = folium.Map(location=user_location, zoom_start=14)
@@ -117,52 +100,13 @@ def find_driver():
 
     for loc, veh, dist in drivers:
         color = "green" if veh == best_vehicle else "gray"
-
         folium.Marker(
             loc,
             popup=f"{veh} | {round(dist,2)} km",
             icon=folium.Icon(color=color)
         ).add_to(m)
 
-    folium.Marker(
-        best_loc,
-        popup="BEST",
-        icon=folium.Icon(color='red')
-    ).add_to(m)
+    folium.Marker(best_loc, popup="BEST", icon=folium.Icon(color='red')).add_to(m)
 
-    html = m.get_root().render()
-
-    # ===== HIỂN THỊ MAP (KHÔNG 404) =====
-    if map_window is None:
-        map_window = webview.create_window("Map", html=html, width=800, height=600)
-        webview.start()
-    else:
-        map_window.load_html(html)
-
-# ===== TKINTER UI =====
-root = tk.Tk()
-root.title("Ride App 🚗")
-root.geometry("400x400")
-
-tk.Label(root, text="Friendliness (0-10)").pack()
-entry_friend = tk.Entry(root)
-entry_friend.pack()
-
-tk.Label(root, text="Privacy (0-10)").pack()
-entry_privacy = tk.Entry(root)
-entry_privacy.pack()
-
-tk.Label(root, text="Distance (km)").pack()
-entry_distance = tk.Entry(root)
-entry_distance.pack()
-
-tk.Label(root, text="Budget (0-100)").pack()
-entry_cost = tk.Entry(root)
-entry_cost.pack()
-
-tk.Button(root, text="Tìm xe", command=find_driver).pack(pady=10)
-
-result_label = tk.Label(root, text="Kết quả sẽ hiển thị ở đây", fg="blue")
-result_label.pack()
-
-root.mainloop()
+    html_map = m._repr_html_()
+    html(html_map, height=500)
