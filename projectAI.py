@@ -12,39 +12,40 @@ from functools import lru_cache
 st.set_page_config(layout="wide", page_title="VivuXanh")
 st.title("🚕 VivuXanh")
 
-# Khởi tạo session state
 if 'selected_vehicle' not in st.session_state:
     st.session_state.selected_vehicle = None
 
-# ===================== GEOCODING - ĐÃ KHẮC PHỤC LỖI 429 =====================
-@lru_cache(maxsize=50)
+# ===================== GEOCODING - DÙNG PHOTON (KHẮC PHỤC 429) =====================
+@lru_cache(maxsize=100)
 def geocode(address):
-    """Geocoding có cache + delay để tránh lỗi 429"""
+    """Sử dụng Photon - ít bị giới hạn hơn Nominatim"""
     if not address or address.strip() == "":
         return None
     
-    url = "https://nominatim.openstreetmap.org/search"
-    params = {"q": address, "format": "json", "limit": 1}
+    url = "https://photon.komoot.io/api/"
+    params = {
+        "q": address,
+        "limit": 1,
+        "lang": "vi"
+    }
     headers = {"User-Agent": "VivuXanh-App/1.0"}
 
     try:
-        time.sleep(1.1)  # Tránh bị chặn
+        time.sleep(0.8)  # Photon cho phép nhanh hơn
         r = requests.get(url, params=params, headers=headers, timeout=10)
         
-        if r.status_code == 429:
-            st.error("🌐 Quá nhiều yêu cầu. Vui lòng chờ 2-3 giây rồi thử lại.")
-            time.sleep(2)
+        if r.status_code != 200:
+            st.error(f"Lỗi geocoding: {r.status_code}")
             return None
             
-        r.raise_for_status()
         data = r.json()
         
-        if data:
-            lat = float(data[0]["lat"])
-            lon = float(data[0]["lon"])
-            return (lat, lon)
+        if data.get("features"):
+            coords = data["features"][0]["geometry"]["coordinates"]
+            lon, lat = coords
+            return (lat, lon)   # Trả về (lat, lon) giống trước
         else:
-            st.warning(f"⚠️ Không tìm thấy địa chỉ: **{address}**")
+            st.warning(f"⚠️ Không tìm thấy: **{address}**")
             return None
             
     except Exception as e:
@@ -110,19 +111,17 @@ def route(p1, p2):
 st.markdown("### 📍 Nhập địa chỉ")
 col1, col2 = st.columns(2)
 with col1:
-    p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1")
+    p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1, TP.HCM")
 with col2:
-    p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh")
+    p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh, TP.HCM")
 
 mode = st.radio("Chọn cách đặt xe:", 
                 ["Chọn xe thủ công", "Tôi không biết chọn xe nào (Gợi ý thông minh)"],
                 horizontal=True)
 
-# ===================== CHỌN XE THỦ CÔNG =====================
 if mode == "Chọn xe thủ công":
     st.markdown("#### 🚗 Chọn loại xe")
     cols = st.columns(4)
-    
     vehicle_options = [
         ("XE MÁY 🏍️", "🏍️", "Rẻ - Nhanh"),
         ("XE MÁY ĐIỆN ⚡", "⚡", "Thân thiện môi trường"),
@@ -141,7 +140,6 @@ if mode == "Chọn xe thủ công":
                 st.rerun()
 
     vehicle_name = st.session_state.selected_vehicle
-
 else:
     st.markdown("#### ⚙️ Thông số để gợi ý phương tiện phù hợp")
     colA, colB = st.columns(2)
@@ -157,7 +155,7 @@ else:
     terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
     vehicle_name = None
 
-# ===================== YẾU TỐ ẢNH HƯỞNG GIÁ =====================
+# ===================== YẾU TỐ GIÁ =====================
 st.markdown("### 💵 Yếu tố ảnh hưởng giá")
 col3, col4 = st.columns(2)
 with col3:
@@ -180,7 +178,6 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
 
     d, t, coords = route(start, end)
 
-    # Xác định loại xe
     if mode == "Chọn xe thủ công":
         if not vehicle_name:
             st.error("Vui lòng chọn loại xe")
@@ -200,7 +197,6 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
         elif v < 7.5: name = "XE Ô TÔ 🚗"
         else: name = "XE Ô TÔ ĐIỆN ⚡🚘"
 
-    # Tính giá
     p = pricing[name]
     final_price = p["base"] + d * p["per_km"] + t * p["per_min"]
 
@@ -217,7 +213,6 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
     folium.PolyLine(coords, color="#00C853", weight=6).add_to(m)
     html(m._repr_html_(), height=480)
 
-    # Kết quả
     st.subheader("✅ Chuyến đi của bạn")
     colA, colB, colC = st.columns(3)
     colA.metric("Loại xe", name)
