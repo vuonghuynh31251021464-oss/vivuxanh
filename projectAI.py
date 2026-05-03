@@ -16,20 +16,18 @@ st.title("🚕 VivuXanh")
 # Hiển thị ngày giờ hiện tại
 current_time = datetime.now()
 st.markdown(f"""
-**🕒 {current_time.strftime('%A, %d/%m/%Y %H:%M:%S')}**
+**📅 {current_time.strftime('%A, %d/%m/%Y')} | ⏰ {current_time.strftime('%H:%M:%S')}**
 """, unsafe_allow_html=True)
 
 # CSS khung xám
 st.markdown("""
- <style> 
- div[data-testid="column"]:first-child div[data-testid="stVerticalBlock"] { 
-     background-color: #1a1a2e;
-     padding: 25px 20px;
-     border-radius: 16px;
-     border: 1px solid #2a2a40;
-     min-height: 85vh;
- } 
- </style>
+ <style> div[data-testid="column"]:first-child div[data-testid="stVerticalBlock"] { 
+    background-color: #1a1a2e;
+    padding: 25px 20px;
+    border-radius: 16px;
+    border: 1px solid #2a2a40;
+    min-height: 85vh;
+ } </style>
 """, unsafe_allow_html=True)
 
 if 'selected_vehicle' not in st.session_state:
@@ -98,18 +96,25 @@ with left_col:
 
     vehicle_name = st.selectbox("Chọn xe", list(pricing.keys()))
 
-    # ======= YẾU TỐ ẢNH HƯỞNG GIÁ (TỰ ĐỘNG) =======
+    # ======= YẾU TỐ ẢNH HƯỞNG GIÁ (MỚI) =======
     st.markdown("### 💵 Yếu tố ảnh hưởng giá")
 
-    # Xác định giờ cao điểm
-    hour = current_time.hour
-    is_peak_hour = (6 <= hour <= 9) or (16 <= hour <= 20)
-    
-    # Random thời tiết xấu (30% xác suất)
-    is_bad_weather = random.random() < 0.3
+    # Random thời tiết
+    weather_options = ["☀️ Trời nắng", "⛅ Ít mây", "🌧️ Mưa nhẹ", "⛈️ Mưa to", "🌫️ Sương mù"]
+    weather = random.choice(weather_options)
+    weather_multiplier = 1.0
+    if "Mưa nhẹ" in weather:
+        weather_multiplier = 1.1
+    elif "Mưa to" in weather or "Sương mù" in weather:
+        weather_multiplier = 1.2
 
-    st.info(f"⏰ **Giờ cao điểm**: {'✅ Có' if is_peak_hour else '❌ Không'}")
-    st.info(f"🌧️ **Thời tiết xấu**: {'✅ Có' if is_bad_weather else '❌ Không'}")
+    st.info(f"**Thời tiết hiện tại:** {weather}")
+
+    # Giờ cao điểm tự động
+    hour = current_time.hour
+    is_peak_hour = (7 <= hour <= 9) or (17 <= hour <= 20)
+    peak_text = "🔴 **Giờ cao điểm** (+30%)" if is_peak_hour else "🟢 Giờ bình thường"
+    st.info(peak_text)
 
     promo_code = st.text_input("🎁 Mã khuyến mãi")
 
@@ -117,7 +122,6 @@ with left_col:
     payment_options = ["Tiền mặt", "Momo", "ZaloPay", "VNPay"]
     payment_method = st.selectbox("Chọn phương thức", payment_options)
 
-    # ===================================
     if st.button("🚀 Tìm xe"):
         start = geocode(p1_input)
         end = geocode(p2_input)
@@ -140,11 +144,14 @@ with left_col:
             p = pricing[vehicle_name]
             price = p["base"] + d * p["per_km"] + t * p["per_min"]
 
-            # Áp dụng phụ phí
+            # Áp dụng giờ cao điểm
             if is_peak_hour:
                 price *= 1.3
-            if is_bad_weather:
-                price *= 1.1
+
+            # Áp dụng thời tiết
+            price *= weather_multiplier
+
+            # Mã khuyến mãi
             if promo_code.strip().upper() == "GIAM10":
                 price *= 0.9
 
@@ -156,10 +163,10 @@ with left_col:
             st.write(f"{round(d,2)} km - {round(t,1)} phút")
 
             st.markdown(f"""
-                <div style="display:flex; align-items:center; gap:15px;">
+                <div style="display:flex; align-items:center; gap:15px; margin:15px 0;">
                     <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" width="45">
                     <div>
-                        <strong>{driver}</strong><br>
+                        <b>{driver}</b><br>
                         ⭐ {rating} | {model}<br>
                         ⏱️ Xe đến sau {max(3,int(t//3))} phút
                     </div>
