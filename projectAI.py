@@ -5,15 +5,51 @@ from streamlit.components.v1 import html
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
-from geopy.geocoders import Nominatim
 import time
 
-# ===================== FUZZY 1 =====================
+# ===================== STYLE (GRAB UI) =====================
+st.set_page_config(layout="wide")
+
+st.markdown("""
+<style>
+body {background-color:#0e1117;}
+.block-container {padding-top: 1rem;}
+.card {
+    background: #1c1f26;
+    padding: 15px;
+    border-radius: 15px;
+    margin-bottom: 10px;
+    color: white;
+}
+.big-title {
+    font-size: 28px;
+    font-weight: bold;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="big-title">🚕 Grab AI (FREE)</div>', unsafe_allow_html=True)
+
+# ===================== AUTOCOMPLETE DATA =====================
+places = {
+    "Chợ Bến Thành, Quận 1": (10.772, 106.698),
+    "Sân bay Tân Sơn Nhất": (10.8188, 106.6519),
+    "Đại học Bách Khoa TP HCM": (10.7733, 106.6600),
+    "Đại học Kinh tế TP.HCM": (10.7626, 106.6602),
+    "Landmark 81": (10.795, 106.721),
+    "Bitexco Tower": (10.7717, 106.7041),
+    "Vincom Đồng Khởi": (10.7798, 106.6992),
+    "Aeon Mall Tân Phú": (10.8015, 106.6187),
+}
+
+def suggest(q):
+    return [k for k in places if q.lower() in k.lower()]
+
+# ===================== FUZZY CHỌN XE =====================
 eco = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco')
 privacy = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'privacy')
 budget = ctrl.Antecedent(np.arange(0, 100.1, 0.1), 'budget')
-
-vehicle_type = ctrl.Consequent(np.arange(0, 10.1, 0.1), 'vehicle_type')
+vehicle = ctrl.Consequent(np.arange(0, 10.1, 0.1), 'vehicle')
 
 eco['low'] = fuzz.trimf(eco.universe, [0,0,5])
 eco['high'] = fuzz.trimf(eco.universe, [5,10,10])
@@ -24,163 +60,114 @@ privacy['high'] = fuzz.trimf(privacy.universe, [5,10,10])
 budget['low'] = fuzz.trimf(budget.universe, [0,0,50])
 budget['high'] = fuzz.trimf(budget.universe, [50,100,100])
 
-vehicle_type['bike'] = fuzz.trimf(vehicle_type.universe, [0,0,4])
-vehicle_type['car'] = fuzz.trimf(vehicle_type.universe, [3,5,7])
-vehicle_type['premium'] = fuzz.trimf(vehicle_type.universe, [6,10,10])
+vehicle['bike'] = fuzz.trimf(vehicle.universe, [0,0,4])
+vehicle['car'] = fuzz.trimf(vehicle.universe, [3,5,7])
+vehicle['premium'] = fuzz.trimf(vehicle.universe, [6,10,10])
 
-rules_vehicle = [
-    ctrl.Rule(budget['low'], vehicle_type['bike']),
-    ctrl.Rule(privacy['high'], vehicle_type['car']),
-    ctrl.Rule(budget['high'] & privacy['high'], vehicle_type['premium']),
+rules = [
+    ctrl.Rule(budget['low'], vehicle['bike']),
+    ctrl.Rule(privacy['high'], vehicle['car']),
+    ctrl.Rule(budget['high'] & privacy['high'], vehicle['premium']),
 ]
 
-vehicle_system = ctrl.ControlSystem(rules_vehicle)
+vehicle_ctrl = ctrl.ControlSystem(rules)
 
-# ===================== FUZZY 2 =====================
-vehicle_input = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'vehicle_input')
-real_distance = ctrl.Antecedent(np.arange(0, 50.1, 0.1), 'real_distance')
-total_cost = ctrl.Consequent(np.arange(0, 500.1, 0.1), 'total_cost')
+# ===================== FUZZY GIÁ =====================
+dist_input = ctrl.Antecedent(np.arange(0, 50, 1), 'dist')
+veh_input = ctrl.Antecedent(np.arange(0, 10, 1), 'veh')
+cost = ctrl.Consequent(np.arange(0, 500, 1), 'cost')
 
-vehicle_input['bike'] = fuzz.trimf(vehicle_input.universe, [0,0,4])
-vehicle_input['car'] = fuzz.trimf(vehicle_input.universe, [3,5,7])
-vehicle_input['premium'] = fuzz.trimf(vehicle_input.universe, [6,10,10])
+dist_input['near'] = fuzz.trimf(dist_input.universe, [0,0,5])
+dist_input['far'] = fuzz.trimf(dist_input.universe, [5,50,50])
 
-real_distance['near'] = fuzz.trimf(real_distance.universe, [0,0,5])
-real_distance['far'] = fuzz.trimf(real_distance.universe, [5,50,50])
+veh_input['bike'] = fuzz.trimf(veh_input.universe, [0,0,4])
+veh_input['car'] = fuzz.trimf(veh_input.universe, [3,5,7])
+veh_input['premium'] = fuzz.trimf(veh_input.universe, [6,10,10])
 
-total_cost['low'] = fuzz.trimf(total_cost.universe, [0,0,100])
-total_cost['medium'] = fuzz.trimf(total_cost.universe, [80,200,350])
-total_cost['high'] = fuzz.trimf(total_cost.universe, [300,500,500])
+cost['low'] = fuzz.trimf(cost.universe, [0,0,100])
+cost['mid'] = fuzz.trimf(cost.universe, [100,250,400])
+cost['high'] = fuzz.trimf(cost.universe, [300,500,500])
 
-rules_cost = [
-    ctrl.Rule(vehicle_input['bike'] & real_distance['near'], total_cost['low']),
-    ctrl.Rule(vehicle_input['bike'] & real_distance['far'], total_cost['medium']),
-    ctrl.Rule(vehicle_input['car'] & real_distance['near'], total_cost['medium']),
-    ctrl.Rule(vehicle_input['car'] & real_distance['far'], total_cost['high']),
-    ctrl.Rule(vehicle_input['premium'], total_cost['high']),
+rules2 = [
+    ctrl.Rule(veh_input['bike'] & dist_input['near'], cost['low']),
+    ctrl.Rule(veh_input['car'], cost['mid']),
+    ctrl.Rule(veh_input['premium'], cost['high']),
 ]
 
-cost_system = ctrl.ControlSystem(rules_cost)
-
-# ===================== GEOCODE FIX 429 =====================
-geolocator = Nominatim(user_agent="ride_app_ai_v2")
-
-@st.cache_data(show_spinner=False)
-def geocode(address):
-    for _ in range(3):  # retry tối đa 3 lần
-        try:
-            time.sleep(1)  # tránh spam
-
-            query = address + ", Ho Chi Minh, Vietnam"
-            loc = geolocator.geocode(query, timeout=10)
-
-            if loc:
-                return (loc.latitude, loc.longitude)
-
-            time.sleep(1)
-
-            loc = geolocator.geocode(address, timeout=10)
-            if loc:
-                return (loc.latitude, loc.longitude)
-
-        except Exception as e:
-            if "429" in str(e):
-                time.sleep(2)  # bị block thì đợi lâu hơn
-            else:
-                st.error(f"Lỗi geocode: {e}")
-                return None
-
-    return None
+cost_ctrl = ctrl.ControlSystem(rules2)
 
 # ===================== OSRM =====================
-def get_route(pickup, destination):
-    url = f"http://router.project-osrm.org/route/v1/driving/{pickup[1]},{pickup[0]};{destination[1]},{destination[0]}?overview=full&geometries=geojson"
+def route(p1, p2):
+    url = f"http://router.project-osrm.org/route/v1/driving/{p1[1]},{p1[0]};{p2[1]},{p2[0]}?overview=full&geometries=geojson"
+    r = requests.get(url).json()
 
-    res = requests.get(url).json()
+    route = r['routes'][0]
+    d = route['distance']/1000
+    t = route['duration']/60
+    coords = [(lat,lon) for lon,lat in route['geometry']['coordinates']]
 
-    if "routes" in res:
-        route = res['routes'][0]
-        distance_km = route['distance'] / 1000
-        duration_min = route['duration'] / 60
+    return d,t,coords
 
-        coords = route['geometry']['coordinates']
-        route_coords = [(lat, lon) for lon, lat in coords]
+# ===================== INPUT =====================
+eco_val = st.slider("🌱 Eco",0.0,10.0,5.0)
+privacy_val = st.slider("🔒 Privacy",0.0,10.0,5.0)
+budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
 
-        return distance_km, duration_min, route_coords
+q1 = st.text_input("📍 Điểm đón")
+p1_list = suggest(q1)
+p1 = st.selectbox("Chọn điểm đón", p1_list)
 
-    return None, None, []
+q2 = st.text_input("📍 Điểm đến")
+p2_list = suggest(q2)
+p2 = st.selectbox("Chọn điểm đến", p2_list)
 
-# ===================== UI =====================
-st.set_page_config(layout="wide")
-st.title("🚕 Ride App AI (ỔN ĐỊNH - KHÔNG 429)")
+# ===================== RUN =====================
+if st.button("🚀 Tìm xe"):
+    start = places[p1]
+    end = places[p2]
 
-eco_input = st.slider("🌱 Eco", 0.0, 10.0, 5.0)
-privacy_input = st.slider("🔒 Privacy", 0.0, 10.0, 5.0)
-budget_input = st.slider("💰 Budget", 0.0, 100.0, 50.0)
+    d,t,coords = route(start,end)
 
-col1, col2 = st.columns(2)
+    # ===== AI CHỌN XE =====
+    sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
+    sim.input['eco'] = eco_val
+    sim.input['privacy'] = privacy_val
+    sim.input['budget'] = budget_val
+    sim.compute()
 
-with col1:
-    pickup_address = st.text_input("📍 Điểm đón", "Đại học Kinh tế TP.HCM")
+    v = sim.output['vehicle']
 
-with col2:
-    destination_address = st.text_input("📍 Điểm đến", "Chợ Bến Thành")
-
-if st.button("🚀 Tìm chuyến đi"):
-    pickup = geocode(pickup_address)
-    destination = geocode(destination_address)
-
-    st.write("DEBUG pickup:", pickup)
-    st.write("DEBUG destination:", destination)
-
-    if not pickup or not destination:
-        st.error("❌ Không tìm được địa chỉ (đừng spam click)")
-        st.stop()
-
-    dist, time_route, route = get_route(pickup, destination)
-
-    if dist is None:
-        st.error("❌ Không tìm được đường đi")
-        st.stop()
-
-    # ===== FUZZY CHỌN XE =====
-    sim_v = ctrl.ControlSystemSimulation(vehicle_system)
-    sim_v.input['eco'] = eco_input
-    sim_v.input['privacy'] = privacy_input
-    sim_v.input['budget'] = budget_input
-    sim_v.compute()
-
-    v = sim_v.output['vehicle_type']
-
-    if v < 4:
-        best_vehicle = "BIKE 🏍️"
-        v_val = 2
-    elif v < 7:
-        best_vehicle = "CAR 🚗"
-        v_val = 5
+    if v<4:
+        name="BIKE 🏍️"; val=2
+    elif v<7:
+        name="CAR 🚗"; val=5
     else:
-        best_vehicle = "PREMIUM 🚘"
-        v_val = 8
+        name="PREMIUM 🚘"; val=8
 
-    st.success(f"🚗 Xe AI đề xuất: {best_vehicle}")
+    # ===== AI GIÁ =====
+    sim2 = ctrl.ControlSystemSimulation(cost_ctrl)
+    sim2.input['veh']=val
+    sim2.input['dist']=d
+    sim2.compute()
 
-    # ===== FUZZY GIÁ =====
-    sim_cost = ctrl.ControlSystemSimulation(cost_system)
-    sim_cost.input['vehicle_input'] = v_val
-    sim_cost.input['real_distance'] = dist
-    sim_cost.compute()
+    price = sim2.output['cost']
 
-    final_cost = sim_cost.output['total_cost']
+    # ===================== MAP =====================
+    m = folium.Map(location=start, zoom_start=14)
+    folium.Marker(start).add_to(m)
+    folium.Marker(end).add_to(m)
+    folium.PolyLine(coords,color="green",weight=6).add_to(m)
 
-    st.info(f"📏 {round(dist,2)} km | ⏱️ {round(time_route,1)} phút")
-    st.warning(f"💰 Giá: {round(final_cost,1)}k VND")
+    html(m._repr_html_(),height=500)
 
-    # ===== MAP =====
-    m = folium.Map(location=pickup, zoom_start=14)
+    # ===================== UI XE =====================
+    st.markdown("## 🚗 Xe đề xuất")
 
-    folium.Marker(pickup, popup="Pickup").add_to(m)
-    folium.Marker(destination, popup="Destination").add_to(m)
-
-    folium.PolyLine(route, color="green", weight=6).add_to(m)
-
-    html(m._repr_html_(), height=500)
+    st.markdown(f"""
+    <div class="card">
+        <h3>{name}</h3>
+        <p>📏 {round(d,2)} km</p>
+        <p>⏱ {round(t,1)} phút</p>
+        <h2>💰 {round(price,1)}k VND</h2>
+    </div>
+    """, unsafe_allow_html=True)
