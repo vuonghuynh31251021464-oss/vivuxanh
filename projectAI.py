@@ -22,17 +22,14 @@ places = {
     "Aeon Mall Tân Phú": (10.8015, 106.6187),
 }
 
-# ===================== TÌM ĐỊA CHỈ =====================
+# ===================== FIND ADDRESS =====================
 def find_place(user_input):
     if not user_input:
         return None
-
     user_input = user_input.lower()
-
     for name, coord in places.items():
         if user_input in name.lower():
             return coord
-
     return None
 
 # ===================== FUZZY CHỌN XE =====================
@@ -65,29 +62,12 @@ rules = [
 
 vehicle_ctrl = ctrl.ControlSystem(rules)
 
-# ===================== FUZZY GIÁ =====================
-dist_input = ctrl.Antecedent(np.arange(0, 50, 1), 'dist')
-veh_input = ctrl.Antecedent(np.arange(0, 10, 1), 'veh')
-cost = ctrl.Consequent(np.arange(0, 500, 1), 'cost')
-
-dist_input['near'] = fuzz.trimf(dist_input.universe, [0,0,5])
-dist_input['far'] = fuzz.trimf(dist_input.universe, [5,50,50])
-
-veh_input['bike'] = fuzz.trimf(veh_input.universe, [0,0,4])
-veh_input['car'] = fuzz.trimf(veh_input.universe, [3,5,7])
-veh_input['premium'] = fuzz.trimf(veh_input.universe, [6,10,10])
-
-cost['low'] = fuzz.trimf(cost.universe, [0,0,100])
-cost['mid'] = fuzz.trimf(cost.universe, [100,250,400])
-cost['high'] = fuzz.trimf(cost.universe, [300,500,500])
-
-rules2 = [
-    ctrl.Rule(veh_input['bike'] & dist_input['near'], cost['low']),
-    ctrl.Rule(veh_input['car'], cost['mid']),
-    ctrl.Rule(veh_input['premium'], cost['high']),
-]
-
-cost_ctrl = ctrl.ControlSystem(rules2)
+# ===================== GIÁ THEO KM =====================
+price_per_km = {
+    "BIKE 🏍️": 4000,     # 4k / km
+    "CAR 🚗": 8000,      # 8k / km
+    "PREMIUM 🚘": 12000  # 12k / km
+}
 
 # ===================== OSRM =====================
 def route(p1, p2):
@@ -105,26 +85,25 @@ def route(p1, p2):
 st.markdown("### 📍 Nhập địa chỉ")
 
 st.info("""
-💡 Cách nhập đúng:
-- Ghi rõ: **Tên địa điểm + Quận**
-- Ví dụ:
-    • Chợ Bến Thành, Quận 1  
-    • Landmark 81, Bình Thạnh  
-    • Đại học Kinh tế TP.HCM  
-- Tránh:
-    ❌ nhập quá ngắn (UEH)  
-    ❌ sai chính tả  
+💡 Nhập đúng:
+- Tên địa điểm + Quận
+- VD: Chợ Bến Thành, Quận 1
+- VD: Landmark 81, Bình Thạnh
+
+❌ Tránh:
+- Viết tắt (UEH)
+- Thiếu thông tin
 """)
 
 col1, col2 = st.columns(2)
 
 with col1:
-    p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1")
+    p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành")
 
 with col2:
-    p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh")
+    p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81")
 
-# ===================== INPUT FUZZY =====================
+# ===================== FUZZY INPUT =====================
 eco_val = st.slider("🌱 Eco",0.0,10.0,5.0)
 privacy_val = st.slider("🔒 Privacy",0.0,10.0,5.0)
 budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
@@ -136,18 +115,16 @@ if st.button("🚀 Tìm xe"):
     end = find_place(p2_input)
 
     if not start:
-        st.error("❌ Không tìm thấy điểm đón")
-        st.warning("👉 Gợi ý: 'Chợ Bến Thành, Quận 1'")
+        st.error("❌ Sai điểm đón")
         st.stop()
 
     if not end:
-        st.error("❌ Không tìm thấy điểm đến")
-        st.warning("👉 Gợi ý: 'Landmark 81, Bình Thạnh'")
+        st.error("❌ Sai điểm đến")
         st.stop()
 
     d,t,coords = route(start,end)
 
-    # ===== FUZZY =====
+    # ===== FUZZY CHỌN XE =====
     sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
     sim.input['eco'] = eco_val
     sim.input['privacy'] = privacy_val
@@ -157,19 +134,14 @@ if st.button("🚀 Tìm xe"):
     v = sim.output.get('vehicle', 5)
 
     if v < 4:
-        name="BIKE 🏍️"; val=2
+        name="BIKE 🏍️"
     elif v < 7:
-        name="CAR 🚗"; val=5
+        name="CAR 🚗"
     else:
-        name="PREMIUM 🚘"; val=8
+        name="PREMIUM 🚘"
 
-    # ===== GIÁ =====
-    sim2 = ctrl.ControlSystemSimulation(cost_ctrl)
-    sim2.input['veh']=val
-    sim2.input['dist']=d
-    sim2.compute()
-
-    price = sim2.output.get('cost', 100)
+    # ===== TÍNH GIÁ =====
+    price = d * price_per_km[name]
 
     # ===== MAP =====
     m = folium.Map(location=start, zoom_start=14)
@@ -180,6 +152,6 @@ if st.button("🚀 Tìm xe"):
     html(m._repr_html_(),height=500)
 
     # ===== RESULT =====
-    st.success(f"🚗 Xe đề xuất: {name}")
+    st.success(f"🚗 Xe: {name}")
     st.info(f"📏 {round(d,2)} km | ⏱ {round(t,1)} phút")
-    st.warning(f"💰 Giá: {round(price,1)}k VND")
+    st.warning(f"💰 Giá: {round(price/1000,1)}k VND")
