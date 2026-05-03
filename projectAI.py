@@ -108,6 +108,7 @@ with colB:
 
 terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
 
+# Người dùng chọn phương tiện
 vehicle_options = ["Gợi ý từ hệ thống", "XE MÁY 🏍️", "XE MÁY ĐIỆN ⚡", "XE Ô TÔ 🚗", "XE Ô TÔ ĐIỆN ⚡🚘"]
 selected_vehicle = st.selectbox("🚗 Chọn phương tiện", vehicle_options)
 
@@ -128,6 +129,7 @@ if st.button("🚀 Tìm xe", type="primary"):
 
     d, t, coords = route(start, end)
 
+    # Nếu người dùng chọn "Gợi ý từ hệ thống" thì chạy fuzzy
     if selected_vehicle == "Gợi ý từ hệ thống":
         sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
         sim.input['passengers'] = num_passengers
@@ -159,6 +161,4 @@ if st.button("🚀 Tìm xe", type="primary"):
     if peak_hour:
         final_price *= 1.3
     if bad_weather:
-        final_price *= 1.1
-    if promo_code.strip().upper() == "GIAM10":
-        final
+        final_price *= 1
