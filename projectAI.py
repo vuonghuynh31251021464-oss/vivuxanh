@@ -8,7 +8,7 @@ from skfuzzy import control as ctrl
 
 # ===================== UI =====================
 st.set_page_config(layout="wide")
-st.title("🚕 Grab AI (Stable Final)")
+st.title("🚕 VivuXanh")
 
 # ===================== DATA =====================
 places = {
@@ -21,9 +21,6 @@ places = {
     "Vincom Đồng Khởi": (10.7798, 106.6992),
     "Aeon Mall Tân Phú": (10.8015, 106.6187),
 }
-
-def suggest(q):
-    return [k for k in places if q.lower() in k.lower()] if q else list(places.keys())
 
 # ===================== FUZZY CHỌN XE =====================
 eco = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco')
@@ -45,7 +42,6 @@ vehicle['bike'] = fuzz.trimf(vehicle.universe, [0,0,4])
 vehicle['car'] = fuzz.trimf(vehicle.universe, [3,5,7])
 vehicle['premium'] = fuzz.trimf(vehicle.universe, [6,10,10])
 
-# 🔥 RULE FIX (có fallback)
 rules = [
     ctrl.Rule(budget['low'], vehicle['bike']),
     ctrl.Rule(privacy['high'], vehicle['car']),
@@ -100,24 +96,31 @@ budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
 col1, col2 = st.columns(2)
 
 with col1:
-    q1 = st.text_input("📍 Điểm đón", key="pickup_input")
-    p1_list = suggest(q1)
-    p1 = st.selectbox("Chọn điểm đón", p1_list, key="pickup_select")
+    p1 = st.selectbox(
+        "📍 Điểm đón",
+        options=list(places.keys()),
+        index=None,
+        placeholder="Chọn điểm đón...",
+        key="pickup_box"
+    )
 
 with col2:
-    q2 = st.text_input("📍 Điểm đến", key="dest_input")
-    p2_list = suggest(q2)
+    p2_options = [p for p in places.keys() if p != p1] if p1 else list(places.keys())
 
-    # 🔥 FIX KHÔNG TRÙNG
-    p2_filtered = [p for p in p2_list if p != p1]
-
-    if not p2_filtered:
-        p2_filtered = ["Không có lựa chọn"]
-
-    p2 = st.selectbox("Chọn điểm đến", p2_filtered, key="dest_select")
+    p2 = st.selectbox(
+        "📍 Điểm đến",
+        options=p2_options,
+        index=None,
+        placeholder="Chọn điểm đến...",
+        key="dest_box"
+    )
 
 # ===================== RUN =====================
 if st.button("🚀 Tìm xe"):
+
+    if not p1 or not p2:
+        st.warning("⚠️ Vui lòng chọn đầy đủ điểm")
+        st.stop()
 
     if p1 == p2:
         st.warning("⚠️ Điểm đón và điểm đến không được trùng")
@@ -135,7 +138,7 @@ if st.button("🚀 Tìm xe"):
     sim.input['budget'] = budget_val
     sim.compute()
 
-    v = sim.output.get('vehicle', 5)  # 🔥 FIX crash
+    v = sim.output.get('vehicle', 5)
 
     if v < 4:
         name="BIKE 🏍️"; val=2
