@@ -6,3 +6,5 @@ folium
 streamlit
 packaging
 networkx
+requests
+polyline
