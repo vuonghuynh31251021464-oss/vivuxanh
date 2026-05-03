@@ -52,10 +52,10 @@ rules = [
 
 vehicle_ctrl = ctrl.ControlSystem(rules)
 
-# ===================== FUZZY GIÁ =====================
+# ===================== FUZZY GIÁ (HỆ SỐ) =====================
 dist_input = ctrl.Antecedent(np.arange(0, 50, 1), 'dist')
 veh_input = ctrl.Antecedent(np.arange(0, 10, 1), 'veh')
-cost = ctrl.Consequent(np.arange(0, 500, 1), 'cost')
+cost = ctrl.Consequent(np.arange(0, 2.1, 0.1), 'cost')  # hệ số
 
 dist_input['near'] = fuzz.trimf(dist_input.universe, [0,0,5])
 dist_input['far'] = fuzz.trimf(dist_input.universe, [5,50,50])
@@ -64,17 +64,25 @@ veh_input['bike'] = fuzz.trimf(veh_input.universe, [0,0,4])
 veh_input['car'] = fuzz.trimf(veh_input.universe, [3,5,7])
 veh_input['premium'] = fuzz.trimf(veh_input.universe, [6,10,10])
 
-cost['low'] = fuzz.trimf(cost.universe, [0,0,100])
-cost['mid'] = fuzz.trimf(cost.universe, [100,250,400])
-cost['high'] = fuzz.trimf(cost.universe, [300,500,500])
+cost['low'] = fuzz.trimf(cost.universe, [0,0,1])
+cost['mid'] = fuzz.trimf(cost.universe, [0.8,1.2,1.5])
+cost['high'] = fuzz.trimf(cost.universe, [1.3,2,2])
 
 rules2 = [
     ctrl.Rule(veh_input['bike'] & dist_input['near'], cost['low']),
+    ctrl.Rule(veh_input['bike'] & dist_input['far'], cost['mid']),
     ctrl.Rule(veh_input['car'], cost['mid']),
     ctrl.Rule(veh_input['premium'], cost['high']),
 ]
 
 cost_ctrl = ctrl.ControlSystem(rules2)
+
+# ===================== GIÁ CƠ BẢN =====================
+base_prices = {
+    "BIKE 🏍️": (5000, 4000),
+    "CAR 🚗": (10000, 8000),
+    "PREMIUM 🚘": (20000, 12000),
+}
 
 # ===================== OSRM =====================
 def route(p1, p2):
@@ -96,42 +104,21 @@ budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
 col1, col2 = st.columns(2)
 
 with col1:
-    p1 = st.selectbox(
-        "📍 Điểm đón",
-        options=list(places.keys()),
-        index=None,
-        placeholder="Chọn điểm đón...",
-        key="pickup_box"
-    )
+    p1 = st.selectbox("📍 Điểm đón", list(places.keys()), key="pickup")
 
 with col2:
-    p2_options = [p for p in places.keys() if p != p1] if p1 else list(places.keys())
-
-    p2 = st.selectbox(
-        "📍 Điểm đến",
-        options=p2_options,
-        index=None,
-        placeholder="Chọn điểm đến...",
-        key="dest_box"
-    )
+    p2_options = [p for p in places if p != p1]
+    p2 = st.selectbox("📍 Điểm đến", p2_options, key="dest")
 
 # ===================== RUN =====================
 if st.button("🚀 Tìm xe"):
-
-    if not p1 or not p2:
-        st.warning("⚠️ Vui lòng chọn đầy đủ điểm")
-        st.stop()
-
-    if p1 == p2:
-        st.warning("⚠️ Điểm đón và điểm đến không được trùng")
-        st.stop()
 
     start = places[p1]
     end = places[p2]
 
     d,t,coords = route(start,end)
 
-    # ===== FUZZY CHỌN XE =====
+    # ===== CHỌN XE =====
     sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
     sim.input['eco'] = eco_val
     sim.input['privacy'] = privacy_val
@@ -147,13 +134,17 @@ if st.button("🚀 Tìm xe"):
     else:
         name="PREMIUM 🚘"; val=8
 
-    # ===== FUZZY GIÁ =====
+    # ===== GIÁ =====
+    base, per_km = base_prices[name]
+    raw_price = base + per_km * d
+
     sim2 = ctrl.ControlSystemSimulation(cost_ctrl)
     sim2.input['veh']=val
     sim2.input['dist']=d
     sim2.compute()
 
-    price = sim2.output.get('cost', 100)
+    coef = sim2.output.get('cost', 1)
+    final_price = raw_price * coef
 
     # ===== MAP =====
     m = folium.Map(location=start, zoom_start=14)
@@ -166,4 +157,6 @@ if st.button("🚀 Tìm xe"):
     # ===== RESULT =====
     st.success(f"🚗 Xe đề xuất: {name}")
     st.info(f"📏 {round(d,2)} km | ⏱ {round(t,1)} phút")
-    st.warning(f"💰 Giá: {round(price,1)}k VND")
+    st.info(f"💸 Giá gốc: {round(raw_price/1000,1)}k")
+    st.info(f"🤖 Hệ số AI: x{round(coef,2)}")
+    st.warning(f"💰 Giá cuối: {round(final_price/1000,1)}k VND")
