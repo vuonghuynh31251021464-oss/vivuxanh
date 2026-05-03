@@ -51,7 +51,7 @@ def geocode(address):
         st.error(f"❌ Lỗi geocoding: {e}")
         return None
 
-# ===================== FUZZY, PRICING, ROUTE (GIỮ NGUYÊN) =====================
+# ===================== FUZZY LOGIC =====================
 passengers = ctrl.Antecedent(np.arange(1, 9, 1), 'passengers')
 terrain = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'terrain')
 safety = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'safety')
@@ -77,10 +77,27 @@ vehicle['xe_may_dien'] = fuzz.trimf(vehicle.universe, [2, 3.5, 5])
 vehicle['xe_oto'] = fuzz.trimf(vehicle.universe, [4, 6, 8])
 vehicle['xe_oto_dien'] = fuzz.trimf(vehicle.universe, [7, 10, 10])
 
-rules = [ ... ]  # Giữ nguyên rules như cũ của bạn
+# ===================== RULES (ĐÃ SỬA) =====================
+rules = [
+    ctrl.Rule(passengers['low'] & terrain['flat'] & safety['low'], vehicle['xe_may']),
+    ctrl.Rule(passengers['low'] & eco_friendly['high'], vehicle['xe_may_dien']),
+    ctrl.Rule(terrain['flat'] & eco_friendly['high'], vehicle['xe_may_dien']),
+    ctrl.Rule(passengers['medium'] | passengers['high'], vehicle['xe_oto']),
+    ctrl.Rule(terrain['rough'] | terrain['moderate'], vehicle['xe_oto']),
+    ctrl.Rule(safety['high'] & passengers['medium'], vehicle['xe_oto']),
+    ctrl.Rule(passengers['medium'] & eco_friendly['high'], vehicle['xe_oto_dien']),
+    ctrl.Rule(eco_friendly['high'] & safety['high'], vehicle['xe_oto_dien']),
+]
+
 vehicle_ctrl = ctrl.ControlSystem(rules)
 
-pricing = { ... }  # Giữ nguyên
+# ===================== PRICING =====================
+pricing = {
+    "XE MÁY 🏍️": {"base": 12000, "per_km": 4500, "per_min": 250},
+    "XE MÁY ĐIỆN ⚡": {"base": 15000, "per_km": 5000, "per_min": 300},
+    "XE Ô TÔ 🚗": {"base": 25000, "per_km": 10000, "per_min": 500},
+    "XE Ô TÔ ĐIỆN ⚡🚘": {"base": 35000, "per_km": 13000, "per_min": 700},
+}
 
 def route(p1, p2):
     url = f"http://router.project-osrm.org/route/v1/driving/{p1[1]},{p1[0]};{p2[1]},{p2[0]}?overview=full&geometries=geojson"
@@ -91,7 +108,7 @@ def route(p1, p2):
     coords = [(lat, lon) for lon, lat in route_data['geometry']['coordinates']]
     return d, t, coords
 
-# ===================== LAYOUT CHÍNH =====================
+# ===================== LAYOUT =====================
 left_col, right_col = st.columns([1, 1.3])
 
 with left_col:
@@ -118,7 +135,8 @@ with left_col:
         for i, (name, icon, desc) in enumerate(vehicle_options):
             with cols[i]:
                 is_selected = st.session_state.selected_vehicle == name
-                if st.button(f"{icon} **{name}**\n\n{desc}", key=f"btn_{name}", 
+                if st.button(f"{icon} **{name}**\n\n{desc}", 
+                            key=f"btn_{name}", 
                             use_container_width=True,
                             type="primary" if is_selected else "secondary"):
                     st.session_state.selected_vehicle = name
@@ -165,13 +183,11 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
 
     start = geocode(p1_input)
     end = geocode(p2_input)
- 
     if not start or not end:
         st.stop()
 
     d, t, coords = route(start, end)
 
-    # Xác định xe
     if mode == "Chọn xe thủ công":
         if not vehicle_name:
             st.error("Vui lòng chọn loại xe")
@@ -202,10 +218,10 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
     folium.Marker(start, popup="Điểm đón", icon=folium.Icon(color="green")).add_to(m)
     folium.Marker(end, popup="Điểm đến", icon=folium.Icon(color="red")).add_to(m)
     folium.PolyLine(coords, color="#00C853", weight=6).add_to(m)
-    with map_placeholder:
-        html(m._repr_html_(), height=600)
+    
+    with map_placeholder.container():
+        html(m._repr_html_(), height=650)
 
-    # Kết quả
     st.subheader("✅ Chuyến đi của bạn")
     colA, colB, colC = st.columns(3)
     colA.metric("Loại xe", name)
