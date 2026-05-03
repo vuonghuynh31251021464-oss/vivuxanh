@@ -10,25 +10,16 @@ from skfuzzy import control as ctrl
 st.set_page_config(layout="wide")
 st.title("🚕 VivuXanh (Grab Style)")
 
-# ===================== DATA =====================
-places = {
-    "Chợ Bến Thành, Quận 1": (10.772, 106.698),
-    "Sân bay Tân Sơn Nhất": (10.8188, 106.6519),
-    "Đại học Bách Khoa TP HCM": (10.7733, 106.6600),
-    "Đại học Kinh tế TP.HCM": (10.7626, 106.6602),
-    "Landmark 81, Bình Thạnh": (10.795, 106.721),
-    "Bitexco Tower, Quận 1": (10.7717, 106.7041),
-    "Vincom Đồng Khởi, Quận 1": (10.7798, 106.6992),
-    "Aeon Mall Tân Phú": (10.8015, 106.6187),
-}
-
-def find_place(user_input):
-    if not user_input:
-        return None
-    user_input = user_input.lower()
-    for name, coord in places.items():
-        if user_input in name.lower():
-            return coord
+# ===================== GEOCODING =====================
+def geocode(address):
+    """Dùng Nominatim để lấy tọa độ từ địa chỉ"""
+    url = f"https://nominatim.openstreetmap.org/search"
+    params = {"q": address, "format": "json", "limit": 1}
+    r = requests.get(url, params=params).json()
+    if r:
+        lat = float(r[0]["lat"])
+        lon = float(r[0]["lon"])
+        return (lat, lon)
     return None
 
 # ===================== FUZZY CHỌN XE =====================
@@ -63,9 +54,9 @@ vehicle_ctrl = ctrl.ControlSystem(rules)
 
 # ===================== GIÁ =====================
 pricing = {
-    "BIKE 🏍️": {"base": 10000, "per_km": 4000, "per_min": 200},
-    "CAR 🚗": {"base": 20000, "per_km": 8000, "per_min": 400},
-    "PREMIUM 🚘": {"base": 30000, "per_km": 12000, "per_min": 600},
+    "BIKE 🏍️": {"base": 12000, "per_km": 5000, "per_min": 300},
+    "CAR 🚗": {"base": 25000, "per_km": 10000, "per_min": 500},
+    "PREMIUM 🚘": {"base": 40000, "per_km": 16000, "per_min": 800},
 }
 
 # ===================== OSRM =====================
@@ -79,7 +70,7 @@ def route(p1, p2):
     return d,t,coords
 
 # ===================== UI INPUT =====================
-st.markdown("### 📍 Nhập địa chỉ")
+st.markdown("### 📍 Nhập địa chỉ bất kỳ")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -93,8 +84,8 @@ budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
 
 # ===================== RUN =====================
 if st.button("🚀 Tìm xe", type="primary"):
-    start = find_place(p1_input)
-    end = find_place(p2_input)
+    start = geocode(p1_input)
+    end = geocode(p2_input)
 
     if not start:
         st.error("❌ Không tìm thấy điểm đón")
