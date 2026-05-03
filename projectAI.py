@@ -8,7 +8,7 @@ from skfuzzy import control as ctrl
 
 # ===================== UI =====================
 st.set_page_config(layout="wide")
-st.title("🚕 VivuXanh (Grab Style)")
+st.title("🚕VivuXanh🌱")
 
 # ===================== GEOCODING =====================
 def geocode(address):
@@ -108,11 +108,11 @@ def route(p1, p2):
 st.markdown("### 📍 Nhập địa chỉ")
 col1, col2 = st.columns(2)
 with col1:
-    p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1")
+    p1_input = st.text_input("📍 Điểm đón")
 with col2:
-    p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh")
+    p2_input = st.text_input("📍 Điểm đến")
 
-st.markdown("### ⚙️ Thông số chuyến đi")
+st.markdown("### ⚙️Gợi ý phương tiện di chuyển phù hợp ")
 colA, colB = st.columns(2)
 with colA:
     num_passengers = st.slider("👥 Số lượng người", 1, 8, 1)
