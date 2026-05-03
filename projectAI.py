@@ -8,21 +8,28 @@ from skfuzzy import control as ctrl
 import time
 from functools import lru_cache
 import random
+from datetime import datetime
 
 st.set_page_config(layout="wide", page_title="VivuXanh")
 st.title("🚕 VivuXanh")
 
+# Hiển thị ngày giờ hiện tại
+current_time = datetime.now()
+st.markdown(f"""
+**🕒 {current_time.strftime('%A, %d/%m/%Y %H:%M:%S')}**
+""", unsafe_allow_html=True)
+
 # CSS khung xám
 st.markdown("""
-<style>
-div[data-testid="column"]:first-child div[data-testid="stVerticalBlock"] {
-    background-color: #1a1a2e;
-    padding: 25px 20px;
-    border-radius: 16px;
-    border: 1px solid #2a2a40;
-    min-height: 85vh;
-}
-</style>
+ <style> 
+ div[data-testid="column"]:first-child div[data-testid="stVerticalBlock"] { 
+     background-color: #1a1a2e;
+     padding: 25px 20px;
+     border-radius: 16px;
+     border: 1px solid #2a2a40;
+     min-height: 85vh;
+ } 
+ </style>
 """, unsafe_allow_html=True)
 
 if 'selected_vehicle' not in st.session_state:
@@ -91,27 +98,32 @@ with left_col:
 
     vehicle_name = st.selectbox("Chọn xe", list(pricing.keys()))
 
-    # ======= THÊM LẠI PHẦN BỊ MẤT =======
+    # ======= YẾU TỐ ẢNH HƯỞNG GIÁ (TỰ ĐỘNG) =======
     st.markdown("### 💵 Yếu tố ảnh hưởng giá")
-    col3, col4 = st.columns(2)
-    with col3:
-        peak_hour = st.checkbox("⏰ Giờ cao điểm (+30%)")
-        bad_weather = st.checkbox("🌧️ Thời tiết xấu (+10%)")
-    with col4:
-        promo_code = st.text_input("🎁 Mã khuyến mãi")
+
+    # Xác định giờ cao điểm
+    hour = current_time.hour
+    is_peak_hour = (6 <= hour <= 9) or (16 <= hour <= 20)
+    
+    # Random thời tiết xấu (30% xác suất)
+    is_bad_weather = random.random() < 0.3
+
+    st.info(f"⏰ **Giờ cao điểm**: {'✅ Có' if is_peak_hour else '❌ Không'}")
+    st.info(f"🌧️ **Thời tiết xấu**: {'✅ Có' if is_bad_weather else '❌ Không'}")
+
+    promo_code = st.text_input("🎁 Mã khuyến mãi")
 
     st.markdown("### 💳 Thanh toán")
     payment_options = ["Tiền mặt", "Momo", "ZaloPay", "VNPay"]
     payment_method = st.selectbox("Chọn phương thức", payment_options)
-    # ===================================
 
+    # ===================================
     if st.button("🚀 Tìm xe"):
         start = geocode(p1_input)
         end = geocode(p2_input)
 
         if start and end:
             d, t, coords = route(start, end)
-
             driver = random.choice(driver_names)
             rating = round(random.uniform(4.0, 5.0), 1)
             model = random.choice(vehicle_models[vehicle_name])
@@ -124,14 +136,19 @@ with left_col:
             with map_placeholder:
                 html(m._repr_html_(), height=720)
 
-            # ======= PRICE =======
+            # ======= PRICE CALCULATION =======
             p = pricing[vehicle_name]
-            price = p["base"] + d*p["per_km"] + t*p["per_min"]
-            if peak_hour: price *= 1.3
-            if bad_weather: price *= 1.1
+            price = p["base"] + d * p["per_km"] + t * p["per_min"]
+
+            # Áp dụng phụ phí
+            if is_peak_hour:
+                price *= 1.3
+            if is_bad_weather:
+                price *= 1.1
             if promo_code.strip().upper() == "GIAM10":
                 price *= 0.9
-            price = int(price/1000)*1000
+
+            price = int(price / 1000) * 1000
 
             # ======= UI =======
             st.subheader("✅ Chuyến đi của bạn")
@@ -139,15 +156,14 @@ with left_col:
             st.write(f"{round(d,2)} km - {round(t,1)} phút")
 
             st.markdown(f"""
-            <div style="display:flex;align-items:center;gap:10px;
-                        background:#1f3a5a;padding:12px;border-radius:10px">
-                <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" width="45">
-                <div>
-                    <b>{driver}</b><br>
-                    ⭐ {rating} | {model}<br>
-                    ⏱️ Xe đến sau {max(3,int(t//3))} phút
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" width="45">
+                    <div>
+                        <strong>{driver}</strong><br>
+                        ⭐ {rating} | {model}<br>
+                        ⏱️ Xe đến sau {max(3,int(t//3))} phút
+                    </div>
                 </div>
-            </div>
             """, unsafe_allow_html=True)
 
             st.success(f"💵 Tổng tiền: {price:,} VND")
