@@ -14,53 +14,46 @@ st.title("🚕 VivuXanh")
 if 'selected_vehicle' not in st.session_state:
     st.session_state.selected_vehicle = None
 
-# ===================== GEOCODING - ĐÃ SỬA LỖI 400 =====================
+# ===================== GEOCODING =====================
 @lru_cache(maxsize=100)
 def geocode(address):
     if not address or str(address).strip() == "":
         return None
-    
-    # Thử Photon với format tốt hơn
+   
     try:
         url = "https://photon.komoot.io/api/"
-        params = {
-            "q": str(address).strip(),
-            "limit": 1,
-            "lang": "vi",
-        }
-        
+        params = {"q": str(address).strip(), "limit": 1, "lang": "vi"}
         headers = {"User-Agent": "VivuXanh-App/1.0"}
-        
+       
         time.sleep(1.0)
         r = requests.get(url, params=params, headers=headers, timeout=15)
-        
+       
         if r.status_code == 200:
             data = r.json()
             if data.get("features") and len(data["features"]) > 0:
                 coords = data["features"][0]["geometry"]["coordinates"]
-                return (coords[1], coords[0])  # (lat, lon)
-        
-        # Nếu Photon lỗi → fallback về Nominatim
+                return (coords[1], coords[0])
+       
+        # Fallback Nominatim
         st.warning("Photon không tìm thấy, đang thử Nominatim...")
         time.sleep(1.2)
-        
         url2 = "https://nominatim.openstreetmap.org/search"
         params2 = {"q": str(address).strip(), "format": "json", "limit": 1}
         r2 = requests.get(url2, params=params2, headers=headers, timeout=10)
-        
+       
         if r2.status_code == 200:
             data2 = r2.json()
             if data2:
                 return (float(data2[0]["lat"]), float(data2[0]["lon"]))
-                
+               
         st.error(f"❌ Không tìm thấy địa chỉ: **{address}**")
         return None
-        
+       
     except Exception as e:
         st.error(f"❌ Lỗi geocoding: {e}")
         return None
 
-# ===================== PHẦN CÒN LẠI GIỮ NGUYÊN =====================
+# ===================== FUZZY & PRICING & ROUTE (GIỮ NGUYÊN) =====================
 passengers = ctrl.Antecedent(np.arange(1, 9, 1), 'passengers')
 terrain = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'terrain')
 safety = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'safety')
@@ -122,9 +115,7 @@ with col1:
 with col2:
     p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh, TP.HCM")
 
-mode = st.radio("Chọn cách đặt xe:", 
-                ["Chọn xe thủ công", "Tôi không biết chọn xe nào (Gợi ý thông minh)"],
-                horizontal=True)
+mode = st.radio("Chọn cách đặt xe:", ["Chọn xe thủ công", "Tôi không biết chọn xe nào (Gợi ý thông minh)"], horizontal=True)
 
 if mode == "Chọn xe thủ công":
     st.markdown("#### 🚗 Chọn loại xe")
@@ -138,9 +129,7 @@ if mode == "Chọn xe thủ công":
     for i, (name, icon, desc) in enumerate(vehicle_options):
         with cols[i]:
             is_selected = st.session_state.selected_vehicle == name
-            if st.button(f"{icon} **{name}**\n\n{desc}", 
-                        key=f"btn_{name}", 
-                        use_container_width=True,
+            if st.button(f"{icon} **{name}**\n\n{desc}", key=f"btn_{name}", use_container_width=True,
                         type="primary" if is_selected else "secondary"):
                 st.session_state.selected_vehicle = name
                 st.rerun()
@@ -150,13 +139,11 @@ else:
     colA, colB = st.columns(2)
     with colA:
         num_passengers = st.slider("👥 Số lượng người", 1, 8, 1)
-        terrain_val = st.select_slider("🛤️ Địa hình", 
-                                      options=["Bằng phẳng", "Có dốc", "Gồ ghề"], 
-                                      value="Bằng phẳng")
+        terrain_val = st.select_slider("🛤️ Địa hình", options=["Bằng phẳng", "Có dốc", "Gồ ghề"], value="Bằng phẳng")
     with colB:
         safety_val = st.slider("🛡️ Độ an toàn ưu tiên", 0.0, 10.0, 7.0, step=0.5)
         eco_val = st.slider("🌱 Độ thân thiện môi trường", 0.0, 10.0, 6.0, step=0.5)
-    
+   
     terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
     vehicle_name = None
 
@@ -168,6 +155,21 @@ with col3:
 with col4:
     promo_code = st.text_input("🎁 Mã khuyến mãi", placeholder="GIAM10")
 
+# ===================== PHƯƠNG THỨC THANH TOÁN =====================
+st.markdown("### 💳 Phương thức thanh toán")
+payment_options = {
+    "Tiền mặt": "💵",
+    "Momo": "📱",
+    "ZaloPay": "💰",
+    "VNPay": "🏦",
+    "Thẻ tín dụng": "💳"
+}
+
+payment_method = st.selectbox("Chọn phương thức thanh toán", 
+                              options=list(payment_options.keys()),
+                              format_func=lambda x: f"{payment_options[x]} {x}")
+
+# ===================== RUN =====================
 if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
     if not p1_input or not p2_input:
         st.error("Vui lòng nhập đầy đủ điểm đón và điểm đến")
@@ -175,7 +177,7 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
 
     start = geocode(p1_input)
     end = geocode(p2_input)
-    
+   
     if not start or not end:
         st.stop()
 
@@ -206,6 +208,7 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
     if promo_code.strip().upper() == "GIAM10": final_price *= 0.9
     final_price = int(final_price / 1000) * 1000
 
+    # Bản đồ
     m = folium.Map(location=start, zoom_start=14, tiles="cartodbpositron")
     folium.Marker(start, popup="Điểm đón", icon=folium.Icon(color="green")).add_to(m)
     folium.Marker(end, popup="Điểm đến", icon=folium.Icon(color="red")).add_to(m)
@@ -220,3 +223,5 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
 
     st.info(f"⏱️ Xe dự kiến đến sau **{max(3, int(t//3))} phút**")
     st.success(f"**Tổng tiền: {final_price:,} VND**", icon="💵")
+    
+    st.info(f"💳 **Phương thức thanh toán:** {payment_options[payment_method]} **{payment_method}**")
