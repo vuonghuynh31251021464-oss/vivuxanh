@@ -8,7 +8,7 @@ from skfuzzy import control as ctrl
 
 # ===================== UI =====================
 st.set_page_config(layout="wide")
-st.title("🚕 Grab AI (Stable Version)")
+st.title("🚕 Grab AI (Stable Final)")
 
 # ===================== DATA =====================
 places = {
@@ -45,12 +45,13 @@ vehicle['bike'] = fuzz.trimf(vehicle.universe, [0,0,4])
 vehicle['car'] = fuzz.trimf(vehicle.universe, [3,5,7])
 vehicle['premium'] = fuzz.trimf(vehicle.universe, [6,10,10])
 
-# ✅ FIX: thêm eco vào rule
+# 🔥 RULE FIX (có fallback)
 rules = [
     ctrl.Rule(budget['low'], vehicle['bike']),
     ctrl.Rule(privacy['high'], vehicle['car']),
     ctrl.Rule(budget['high'] & privacy['high'], vehicle['premium']),
     ctrl.Rule(eco['high'] & budget['low'], vehicle['bike']),
+    ctrl.Rule(eco['low'] & privacy['low'] & budget['low'], vehicle['bike']),  # fallback
 ]
 
 vehicle_ctrl = ctrl.ControlSystem(rules)
@@ -106,10 +107,18 @@ with col1:
 with col2:
     q2 = st.text_input("📍 Điểm đến", key="dest_input")
     p2_list = suggest(q2)
-    p2 = st.selectbox("Chọn điểm đến", p2_list, key="dest_select")
+
+    # 🔥 FIX KHÔNG TRÙNG
+    p2_filtered = [p for p in p2_list if p != p1]
+
+    if not p2_filtered:
+        p2_filtered = ["Không có lựa chọn"]
+
+    p2 = st.selectbox("Chọn điểm đến", p2_filtered, key="dest_select")
 
 # ===================== RUN =====================
 if st.button("🚀 Tìm xe"):
+
     if p1 == p2:
         st.warning("⚠️ Điểm đón và điểm đến không được trùng")
         st.stop()
@@ -119,29 +128,29 @@ if st.button("🚀 Tìm xe"):
 
     d,t,coords = route(start,end)
 
-    # ===== AI CHỌN XE =====
+    # ===== FUZZY CHỌN XE =====
     sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
     sim.input['eco'] = eco_val
     sim.input['privacy'] = privacy_val
     sim.input['budget'] = budget_val
     sim.compute()
 
-    v = sim.output['vehicle']
+    v = sim.output.get('vehicle', 5)  # 🔥 FIX crash
 
-    if v<4:
+    if v < 4:
         name="BIKE 🏍️"; val=2
-    elif v<7:
+    elif v < 7:
         name="CAR 🚗"; val=5
     else:
         name="PREMIUM 🚘"; val=8
 
-    # ===== AI GIÁ =====
+    # ===== FUZZY GIÁ =====
     sim2 = ctrl.ControlSystemSimulation(cost_ctrl)
     sim2.input['veh']=val
     sim2.input['dist']=d
     sim2.compute()
 
-    price = sim2.output['cost']
+    price = sim2.output.get('cost', 100)
 
     # ===== MAP =====
     m = folium.Map(location=start, zoom_start=14)
