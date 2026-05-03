@@ -4,6 +4,7 @@ import folium
 from streamlit.components.v1 import html
 import random
 from datetime import datetime
+from functools import lru_cache   # ← Đây là dòng bị thiếu
 
 st.set_page_config(layout="wide", page_title="VivuXanh")
 st.title("🚕 VivuXanh")
@@ -53,7 +54,7 @@ def geocode(address):
                 coords = data["features"][0]["geometry"]["coordinates"]
                 return (coords[1], coords[0])
     except:
-        return None
+        pass
     return None
 
 def route(p1, p2):
@@ -68,7 +69,7 @@ def route(p1, p2):
             coords = [(lat, lon) for lon, lat in route_data['geometry']['coordinates']]
             return d, t, coords
     except:
-        return None, None, None
+        pass
     return None, None, None
 
 # ================= LAYOUT =================
@@ -85,9 +86,9 @@ with left_col:
     st.markdown("### 📍 Nhập địa chỉ")
     col1, col2 = st.columns(2)
     with col1:
-        p1_input = st.text_input("Điểm đón", placeholder="Ví dụ: 123 Nguyễn Huệ, Quận 1")
+        p1_input = st.text_input("Điểm đón", placeholder="Ví dụ: Bến Thành, Quận 1")
     with col2:
-        p2_input = st.text_input("Điểm đến", placeholder="Ví dụ: Landmark 81, Quận Bình Thạnh")
+        p2_input = st.text_input("Điểm đến", placeholder="Ví dụ: Landmark 81")
 
     vehicle_name = st.selectbox("Chọn xe", list(pricing.keys()))
 
@@ -108,21 +109,22 @@ with left_col:
     payment_method = st.selectbox("Chọn phương thức thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
 
     if st.button("🚀 Tìm xe", type="primary", use_container_width=True):
-        with st.spinner("Đang tìm xe và tính toán..."):
+        with st.spinner("Đang tìm xe và tính toán tuyến đường..."):
             start = geocode(p1_input)
             end = geocode(p2_input)
 
-            if not start:
-                st.error("❌ Không tìm thấy **Điểm đón**. Vui lòng nhập địa chỉ cụ thể hơn.")
+            if not p1_input or not p2_input:
+                st.warning("Vui lòng nhập đầy đủ điểm đón và điểm đến")
+            elif not start:
+                st.error("❌ Không tìm thấy **Điểm đón**. Hãy thử nhập cụ thể hơn (ví dụ: Bến Thành, Quận 1)")
             elif not end:
-                st.error("❌ Không tìm thấy **Điểm đến**. Vui lòng nhập địa chỉ cụ thể hơn.")
+                st.error("❌ Không tìm thấy **Điểm đến**. Hãy thử nhập cụ thể hơn")
             else:
                 d, t, coords = route(start, end)
                 
                 if d is None:
-                    st.error("❌ Không thể tính tuyến đường. Thử lại sau.")
+                    st.error("❌ Không thể tính được tuyến đường. Vui lòng thử lại.")
                 else:
-                    # Tạo kết quả
                     driver = random.choice(driver_names)
                     rating = round(random.uniform(4.0, 5.0), 1)
                     model = random.choice(vehicle_models[vehicle_name])
@@ -131,7 +133,8 @@ with left_col:
                     m = folium.Map(location=start, zoom_start=14)
                     folium.Marker(start, popup="Điểm đón").add_to(m)
                     folium.Marker(end, popup="Điểm đến").add_to(m)
-                    folium.PolyLine(coords, color="blue", weight=4).add_to(m)
+                    if coords:
+                        folium.PolyLine(coords, color="blue", weight=4).add_to(m)
                     
                     with map_placeholder:
                         html(m._repr_html_(), height=720)
@@ -147,10 +150,10 @@ with left_col:
                     price = int(price / 1000) * 1000
 
                     # Hiển thị kết quả
-                    st.success("✅ Tìm thấy xe gần bạn!")
-                    st.subheader("🚘 Chuyến đi của bạn")
+                    st.success("✅ Đã tìm thấy xe!")
+                    st.subheader("🚘 Thông tin chuyến đi")
                     st.write(f"**{vehicle_name}** | **{model}**")
-                    st.write(f"📏 {round(d,2)} km - ⏱️ {round(t,1)} phút")
+                    st.write(f"📏 {round(d,2)} km — ⏱️ {round(t,1)} phút")
 
                     st.markdown(f"""
                     <div style="background:#16213e;padding:15px;border-radius:12px;margin:15px 0;">
@@ -161,6 +164,4 @@ with left_col:
                     """, unsafe_allow_html=True)
 
                     st.success(f"💵 **Tổng tiền: {price:,} VND**")
-                    st.info(f"💳 Thanh toán bằng: **{payment_method}**")
-
-                    st.balloons()
+                    st.info(f"💳 Thanh toán: **{payment_method}**")
