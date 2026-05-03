@@ -92,7 +92,7 @@ with left_col:
 
     vehicle_name = st.selectbox("Chọn xe", list(pricing.keys()))
 
-    st.markdown("### 💵 Yếu tố ảnh hưởng giá")
+    st.markdown("### Tình Hình Hiện Tại")
     current_time = datetime.now()
     hour = current_time.hour
     is_peak_hour = (7 <= hour <= 9) or (17 <= hour <= 20)
