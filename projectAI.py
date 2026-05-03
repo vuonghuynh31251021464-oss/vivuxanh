@@ -16,11 +16,24 @@ places = {
     "Sân bay Tân Sơn Nhất": (10.8188, 106.6519),
     "Đại học Bách Khoa TP HCM": (10.7733, 106.6600),
     "Đại học Kinh tế TP.HCM": (10.7626, 106.6602),
-    "Landmark 81": (10.795, 106.721),
-    "Bitexco Tower": (10.7717, 106.7041),
-    "Vincom Đồng Khởi": (10.7798, 106.6992),
+    "Landmark 81, Bình Thạnh": (10.795, 106.721),
+    "Bitexco Tower, Quận 1": (10.7717, 106.7041),
+    "Vincom Đồng Khởi, Quận 1": (10.7798, 106.6992),
     "Aeon Mall Tân Phú": (10.8015, 106.6187),
 }
+
+# ===================== TÌM ĐỊA CHỈ =====================
+def find_place(user_input):
+    if not user_input:
+        return None
+
+    user_input = user_input.lower()
+
+    for name, coord in places.items():
+        if user_input in name.lower():
+            return coord
+
+    return None
 
 # ===================== FUZZY CHỌN XE =====================
 eco = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco')
@@ -47,7 +60,7 @@ rules = [
     ctrl.Rule(privacy['high'], vehicle['car']),
     ctrl.Rule(budget['high'] & privacy['high'], vehicle['premium']),
     ctrl.Rule(eco['high'] & budget['low'], vehicle['bike']),
-    ctrl.Rule(eco['low'] & privacy['low'] & budget['low'], vehicle['bike']),  # fallback
+    ctrl.Rule(eco['low'] & privacy['low'] & budget['low'], vehicle['bike']),
 ]
 
 vehicle_ctrl = ctrl.ControlSystem(rules)
@@ -88,50 +101,53 @@ def route(p1, p2):
 
     return d,t,coords
 
-# ===================== INPUT =====================
-eco_val = st.slider("🌱 Eco",0.0,10.0,5.0)
-privacy_val = st.slider("🔒 Privacy",0.0,10.0,5.0)
-budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
+# ===================== HƯỚNG DẪN =====================
+st.markdown("### 📍 Nhập địa chỉ")
+
+st.info("""
+💡 Cách nhập đúng:
+- Ghi rõ: **Tên địa điểm + Quận**
+- Ví dụ:
+    • Chợ Bến Thành, Quận 1  
+    • Landmark 81, Bình Thạnh  
+    • Đại học Kinh tế TP.HCM  
+- Tránh:
+    ❌ nhập quá ngắn (UEH)  
+    ❌ sai chính tả  
+""")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    p1 = st.selectbox(
-        "📍 Điểm đón",
-        options=list(places.keys()),
-        index=None,
-        placeholder="Chọn điểm đón...",
-        key="pickup_box"
-    )
+    p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1")
 
 with col2:
-    p2_options = [p for p in places.keys() if p != p1] if p1 else list(places.keys())
+    p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh")
 
-    p2 = st.selectbox(
-        "📍 Điểm đến",
-        options=p2_options,
-        index=None,
-        placeholder="Chọn điểm đến...",
-        key="dest_box"
-    )
+# ===================== INPUT FUZZY =====================
+eco_val = st.slider("🌱 Eco",0.0,10.0,5.0)
+privacy_val = st.slider("🔒 Privacy",0.0,10.0,5.0)
+budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
 
 # ===================== RUN =====================
 if st.button("🚀 Tìm xe"):
 
-    if not p1 or not p2:
-        st.warning("⚠️ Vui lòng chọn đầy đủ điểm")
+    start = find_place(p1_input)
+    end = find_place(p2_input)
+
+    if not start:
+        st.error("❌ Không tìm thấy điểm đón")
+        st.warning("👉 Gợi ý: 'Chợ Bến Thành, Quận 1'")
         st.stop()
 
-    if p1 == p2:
-        st.warning("⚠️ Điểm đón và điểm đến không được trùng")
+    if not end:
+        st.error("❌ Không tìm thấy điểm đến")
+        st.warning("👉 Gợi ý: 'Landmark 81, Bình Thạnh'")
         st.stop()
-
-    start = places[p1]
-    end = places[p2]
 
     d,t,coords = route(start,end)
 
-    # ===== FUZZY CHỌN XE =====
+    # ===== FUZZY =====
     sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
     sim.input['eco'] = eco_val
     sim.input['privacy'] = privacy_val
@@ -147,7 +163,7 @@ if st.button("🚀 Tìm xe"):
     else:
         name="PREMIUM 🚘"; val=8
 
-    # ===== FUZZY GIÁ =====
+    # ===== GIÁ =====
     sim2 = ctrl.ControlSystemSimulation(cost_ctrl)
     sim2.input['veh']=val
     sim2.input['dist']=d
