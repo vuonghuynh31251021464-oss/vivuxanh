@@ -5,14 +5,13 @@ from streamlit.components.v1 import html
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
-import time
 from functools import lru_cache
 import random
 
 st.set_page_config(layout="wide", page_title="VivuXanh")
 st.title("🚕 VivuXanh")
 
-# CSS khung xám
+# CSS khung trái
 st.markdown("""
 <style>
 div[data-testid="column"]:first-child div[data-testid="stVerticalBlock"] {
@@ -24,9 +23,6 @@ div[data-testid="column"]:first-child div[data-testid="stVerticalBlock"] {
 }
 </style>
 """, unsafe_allow_html=True)
-
-if 'selected_vehicle' not in st.session_state:
-    st.session_state.selected_vehicle = None
 
 # ================= DATA =================
 driver_names = [
@@ -85,70 +81,101 @@ with left_col:
     st.markdown("### 📍 Nhập địa chỉ")
     col1, col2 = st.columns(2)
     with col1:
-        p1_input = st.text_input("Điểm đón")
+        p1_input = st.text_input("📍 Điểm đón")
     with col2:
-        p2_input = st.text_input("Điểm đến")
+        p2_input = st.text_input("📍 Điểm đến")
 
-    vehicle_name = st.selectbox("Chọn xe", list(pricing.keys()))
+    vehicle_name = st.selectbox("🚗 Chọn loại xe", list(pricing.keys()))
 
-    # ======= THÊM LẠI PHẦN BỊ MẤT =======
-    st.markdown("### 💵 Yếu tố ảnh hưởng giá")
-    col3, col4 = st.columns(2)
-    with col3:
-        peak_hour = st.checkbox("⏰ Giờ cao điểm (+30%)")
-        bad_weather = st.checkbox("🌧️ Thời tiết xấu (+10%)")
-    with col4:
-        promo_code = st.text_input("🎁 Mã khuyến mãi")
+    # Mã giảm giá
+    promo_code = st.text_input("🎁 Mã khuyến mãi")
 
-    st.markdown("### 💳 Thanh toán")
-    payment_options = ["Tiền mặt", "Momo", "ZaloPay", "VNPay"]
-    payment_method = st.selectbox("Chọn phương thức", payment_options)
-    # ===================================
+    # Thanh toán
+    payment_options = {"Tiền mặt": "💵", "Momo": "📱", "ZaloPay": "💰", "VNPay": "🏦"}
+    payment_method = st.selectbox("💳 Thanh toán", list(payment_options.keys()),
+                                 format_func=lambda x: f"{payment_options[x]} {x}")
 
-    if st.button("🚀 Tìm xe"):
+    if st.button("🚀 Tìm xe ngay", use_container_width=True):
+
         start = geocode(p1_input)
         end = geocode(p2_input)
 
         if start and end:
             d, t, coords = route(start, end)
 
+            # ===== Random driver =====
             driver = random.choice(driver_names)
             rating = round(random.uniform(4.0, 5.0), 1)
             model = random.choice(vehicle_models[vehicle_name])
 
-            # MAP UPDATE
+            # ===== Map update =====
             m = folium.Map(location=start, zoom_start=14)
-            folium.Marker(start).add_to(m)
-            folium.Marker(end).add_to(m)
-            folium.PolyLine(coords).add_to(m)
+            folium.Marker(start, tooltip="Điểm đón").add_to(m)
+            folium.Marker(end, tooltip="Điểm đến").add_to(m)
+            folium.PolyLine(coords, color="#00ff88", weight=6).add_to(m)
+
             with map_placeholder:
                 html(m._repr_html_(), height=720)
 
-            # ======= PRICE =======
+            # ===== Price =====
             p = pricing[vehicle_name]
             price = p["base"] + d*p["per_km"] + t*p["per_min"]
-            if peak_hour: price *= 1.3
-            if bad_weather: price *= 1.1
+
+            # RANDOM yếu tố
+            peak_hour = random.random() < 0.3
+            bad_weather = random.random() < 0.2
+
+            extra_tags = []
+
+            if peak_hour:
+                price *= 1.3
+                extra_tags.append("⏰ Giờ cao điểm +30%")
+
+            if bad_weather:
+                price *= 1.1
+                extra_tags.append("🌧️ Trời mưa +10%")
+
             if promo_code.strip().upper() == "GIAM10":
                 price *= 0.9
+                extra_tags.append("🎉 Giảm giá 10%")
+
             price = int(price/1000)*1000
 
-            # ======= UI =======
+            # ===== UI =====
             st.subheader("✅ Chuyến đi của bạn")
-            st.write(vehicle_name, "|", model)
-            st.write(f"{round(d,2)} km - {round(t,1)} phút")
+            st.write(f"{vehicle_name} | {model}")
+            st.write(f"📏 {round(d,2)} km | ⏱️ {round(t,1)} phút")
 
+            # Driver card
             st.markdown(f"""
-            <div style="display:flex;align-items:center;gap:10px;
-                        background:#1f3a5a;padding:12px;border-radius:10px">
-                <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" width="45">
+            <div style="display:flex;align-items:center;gap:12px;
+                        background:#1f3a5a;padding:15px;border-radius:12px">
+                <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" width="50">
                 <div>
                     <b>{driver}</b><br>
-                    ⭐ {rating} | {model}<br>
-                    ⏱️ Xe đến sau {max(3,int(t//3))} phút
+                    ⭐ {rating} | 🚗 {model}<br>
+                    ⏱️ Xe đến sau <b>{max(3,int(t//3))} phút</b>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
+            # Price
             st.success(f"💵 Tổng tiền: {price:,} VND")
-            st.info(f"💳 Thanh toán: {payment_method}")
+
+            # Extra conditions
+            if extra_tags:
+                st.markdown(f"""
+                <div style="margin-top:10px;background:#2a2a00;
+                            padding:10px;border-radius:10px">
+                    {' | '.join(extra_tags)}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="margin-top:10px;background:#1f2a1f;
+                            padding:10px;border-radius:10px">
+                    🌤️ Điều kiện bình thường
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.info(f"💳 Thanh toán: {payment_options[payment_method]} {payment_method}")
