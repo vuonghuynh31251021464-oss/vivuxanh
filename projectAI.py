@@ -6,14 +6,8 @@ import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 from functools import lru_cache
-import randomimport streamlit as st
-import requests
-import folium
-from streamlit.components.v1 import html
-from functools import lru_cache
 import random
-import time
-import math
+
 
 st.set_page_config(layout="wide", page_title="VivuXanh")
 st.title("🚕 VivuXanh")
