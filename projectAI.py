@@ -13,14 +13,24 @@ st.title("🚕 VivuXanh (Grab Style)")
 # ===================== GEOCODING =====================
 def geocode(address):
     """Dùng Nominatim để lấy tọa độ từ địa chỉ"""
-    url = f"https://nominatim.openstreetmap.org/search"
+    url = "https://nominatim.openstreetmap.org/search"
     params = {"q": address, "format": "json", "limit": 1}
-    r = requests.get(url, params=params).json()
-    if r:
-        lat = float(r[0]["lat"])
-        lon = float(r[0]["lon"])
-        return (lat, lon)
-    return None
+    headers = {"User-Agent": "vivuxanh-app"}  # Bắt buộc phải có
+
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=10)
+        r.raise_for_status()  # Nếu lỗi HTTP thì raise
+        data = r.json()
+        if data:
+            lat = float(data[0]["lat"])
+            lon = float(data[0]["lon"])
+            return (lat, lon)
+        else:
+            return None
+    except Exception as e:
+        st.error(f"❌ Lỗi geocoding: {e}")
+        return None
+
 
 # ===================== FUZZY CHỌN XE =====================
 eco = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco')
