@@ -8,51 +8,59 @@ from skfuzzy import control as ctrl
 import time
 from functools import lru_cache
 
-# ===================== UI =====================
 st.set_page_config(layout="wide", page_title="VivuXanh")
 st.title("🚕 VivuXanh")
 
 if 'selected_vehicle' not in st.session_state:
     st.session_state.selected_vehicle = None
 
-# ===================== GEOCODING - DÙNG PHOTON (KHẮC PHỤC 429) =====================
+# ===================== GEOCODING - ĐÃ SỬA LỖI 400 =====================
 @lru_cache(maxsize=100)
 def geocode(address):
-    """Sử dụng Photon - ít bị giới hạn hơn Nominatim"""
-    if not address or address.strip() == "":
+    if not address or str(address).strip() == "":
         return None
     
-    url = "https://photon.komoot.io/api/"
-    params = {
-        "q": address,
-        "limit": 1,
-        "lang": "vi"
-    }
-    headers = {"User-Agent": "VivuXanh-App/1.0"}
-
+    # Thử Photon với format tốt hơn
     try:
-        time.sleep(0.8)  # Photon cho phép nhanh hơn
-        r = requests.get(url, params=params, headers=headers, timeout=10)
+        url = "https://photon.komoot.io/api/"
+        params = {
+            "q": str(address).strip(),
+            "limit": 1,
+            "lang": "vi",
+        }
         
-        if r.status_code != 200:
-            st.error(f"Lỗi geocoding: {r.status_code}")
-            return None
-            
-        data = r.json()
+        headers = {"User-Agent": "VivuXanh-App/1.0"}
         
-        if data.get("features"):
-            coords = data["features"][0]["geometry"]["coordinates"]
-            lon, lat = coords
-            return (lat, lon)   # Trả về (lat, lon) giống trước
-        else:
-            st.warning(f"⚠️ Không tìm thấy: **{address}**")
-            return None
-            
+        time.sleep(1.0)
+        r = requests.get(url, params=params, headers=headers, timeout=15)
+        
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("features") and len(data["features"]) > 0:
+                coords = data["features"][0]["geometry"]["coordinates"]
+                return (coords[1], coords[0])  # (lat, lon)
+        
+        # Nếu Photon lỗi → fallback về Nominatim
+        st.warning("Photon không tìm thấy, đang thử Nominatim...")
+        time.sleep(1.2)
+        
+        url2 = "https://nominatim.openstreetmap.org/search"
+        params2 = {"q": str(address).strip(), "format": "json", "limit": 1}
+        r2 = requests.get(url2, params=params2, headers=headers, timeout=10)
+        
+        if r2.status_code == 200:
+            data2 = r2.json()
+            if data2:
+                return (float(data2[0]["lat"]), float(data2[0]["lon"]))
+                
+        st.error(f"❌ Không tìm thấy địa chỉ: **{address}**")
+        return None
+        
     except Exception as e:
         st.error(f"❌ Lỗi geocoding: {e}")
         return None
 
-# ===================== FUZZY LOGIC =====================
+# ===================== PHẦN CÒN LẠI GIỮ NGUYÊN =====================
 passengers = ctrl.Antecedent(np.arange(1, 9, 1), 'passengers')
 terrain = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'terrain')
 safety = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'safety')
@@ -90,7 +98,6 @@ rules = [
 ]
 vehicle_ctrl = ctrl.ControlSystem(rules)
 
-# ===================== PRICING =====================
 pricing = {
     "XE MÁY 🏍️": {"base": 12000, "per_km": 4500, "per_min": 250},
     "XE MÁY ĐIỆN ⚡": {"base": 15000, "per_km": 5000, "per_min": 300},
@@ -107,7 +114,7 @@ def route(p1, p2):
     coords = [(lat, lon) for lon, lat in route_data['geometry']['coordinates']]
     return d, t, coords
 
-# ===================== MAIN UI =====================
+# ===================== UI =====================
 st.markdown("### 📍 Nhập địa chỉ")
 col1, col2 = st.columns(2)
 with col1:
@@ -128,7 +135,6 @@ if mode == "Chọn xe thủ công":
         ("XE Ô TÔ 🚗", "🚗", "Thoải mái"),
         ("XE Ô TÔ ĐIỆN ⚡🚘", "🚘", "Cao cấp - Xanh")
     ]
-    
     for i, (name, icon, desc) in enumerate(vehicle_options):
         with cols[i]:
             is_selected = st.session_state.selected_vehicle == name
@@ -138,7 +144,6 @@ if mode == "Chọn xe thủ công":
                         type="primary" if is_selected else "secondary"):
                 st.session_state.selected_vehicle = name
                 st.rerun()
-
     vehicle_name = st.session_state.selected_vehicle
 else:
     st.markdown("#### ⚙️ Thông số để gợi ý phương tiện phù hợp")
@@ -155,7 +160,6 @@ else:
     terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
     vehicle_name = None
 
-# ===================== YẾU TỐ GIÁ =====================
 st.markdown("### 💵 Yếu tố ảnh hưởng giá")
 col3, col4 = st.columns(2)
 with col3:
@@ -164,7 +168,6 @@ with col3:
 with col4:
     promo_code = st.text_input("🎁 Mã khuyến mãi", placeholder="GIAM10")
 
-# ===================== RUN =====================
 if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
     if not p1_input or not p2_input:
         st.error("Vui lòng nhập đầy đủ điểm đón và điểm đến")
@@ -191,7 +194,6 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
         sim.input['eco_friendly'] = eco_val
         sim.compute()
         v = sim.output['vehicle']
-        
         if v < 3: name = "XE MÁY 🏍️"
         elif v < 5: name = "XE MÁY ĐIỆN ⚡"
         elif v < 7.5: name = "XE Ô TÔ 🚗"
@@ -199,14 +201,11 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
 
     p = pricing[name]
     final_price = p["base"] + d * p["per_km"] + t * p["per_min"]
-
     if peak_hour: final_price *= 1.3
     if bad_weather: final_price *= 1.1
     if promo_code.strip().upper() == "GIAM10": final_price *= 0.9
-
     final_price = int(final_price / 1000) * 1000
 
-    # Bản đồ
     m = folium.Map(location=start, zoom_start=14, tiles="cartodbpositron")
     folium.Marker(start, popup="Điểm đón", icon=folium.Icon(color="green")).add_to(m)
     folium.Marker(end, popup="Điểm đến", icon=folium.Icon(color="red")).add_to(m)
