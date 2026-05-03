@@ -2,13 +2,40 @@ import streamlit as st
 import requests
 import folium
 from streamlit.components.v1 import html
-import polyline
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 from geopy.geocoders import Nominatim
 
-# ===================== FUZZY =====================
+# ===================== FUZZY 1: CHỌN XE =====================
+eco = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco')
+privacy = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'privacy')
+budget = ctrl.Antecedent(np.arange(0, 100.1, 0.1), 'budget')
+
+vehicle_type = ctrl.Consequent(np.arange(0, 10.1, 0.1), 'vehicle_type')
+
+eco['low'] = fuzz.trimf(eco.universe, [0,0,5])
+eco['high'] = fuzz.trimf(eco.universe, [5,10,10])
+
+privacy['low'] = fuzz.trimf(privacy.universe, [0,0,5])
+privacy['high'] = fuzz.trimf(privacy.universe, [5,10,10])
+
+budget['low'] = fuzz.trimf(budget.universe, [0,0,50])
+budget['high'] = fuzz.trimf(budget.universe, [50,100,100])
+
+vehicle_type['bike'] = fuzz.trimf(vehicle_type.universe, [0,0,4])
+vehicle_type['car'] = fuzz.trimf(vehicle_type.universe, [3,5,7])
+vehicle_type['premium'] = fuzz.trimf(vehicle_type.universe, [6,10,10])
+
+rules_vehicle = [
+    ctrl.Rule(budget['low'], vehicle_type['bike']),
+    ctrl.Rule(privacy['high'], vehicle_type['car']),
+    ctrl.Rule(budget['high'] & privacy['high'], vehicle_type['premium']),
+]
+
+vehicle_system = ctrl.ControlSystem(rules_vehicle)
+
+# ===================== FUZZY 2: TÍNH GIÁ =====================
 vehicle_input = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'vehicle_input')
 real_distance = ctrl.Antecedent(np.arange(0, 50.1, 0.1), 'real_distance')
 total_cost = ctrl.Consequent(np.arange(0, 500.1, 0.1), 'total_cost')
@@ -24,7 +51,7 @@ total_cost['low'] = fuzz.trimf(total_cost.universe, [0,0,100])
 total_cost['medium'] = fuzz.trimf(total_cost.universe, [80,200,350])
 total_cost['high'] = fuzz.trimf(total_cost.universe, [300,500,500])
 
-rules = [
+rules_cost = [
     ctrl.Rule(vehicle_input['bike'] & real_distance['near'], total_cost['low']),
     ctrl.Rule(vehicle_input['bike'] & real_distance['far'], total_cost['medium']),
     ctrl.Rule(vehicle_input['car'] & real_distance['near'], total_cost['medium']),
@@ -32,18 +59,27 @@ rules = [
     ctrl.Rule(vehicle_input['premium'], total_cost['high']),
 ]
 
-cost_system = ctrl.ControlSystem(rules)
+cost_system = ctrl.ControlSystem(rules_cost)
 
 # ===================== GEOCODE =====================
-geolocator = Nominatim(user_agent="ride_app")
+geolocator = Nominatim(user_agent="ride_app_ai")
 
 def geocode(address):
     try:
-        loc = geolocator.geocode(address + ", Vietnam", timeout=10)
+        query = address + ", Ho Chi Minh, Vietnam"
+        loc = geolocator.geocode(query, timeout=10)
+
         if loc:
             return (loc.latitude, loc.longitude)
-    except:
-        return None
+
+        # fallback
+        loc = geolocator.geocode(address, timeout=10)
+        if loc:
+            return (loc.latitude, loc.longitude)
+
+    except Exception as e:
+        st.error(f"Lỗi geocode: {e}")
+
     return None
 
 # ===================== OSRM ROUTE =====================
@@ -66,7 +102,11 @@ def get_route(pickup, destination):
 
 # ===================== UI =====================
 st.set_page_config(layout="wide")
-st.title("🚕 Ride App AI (FREE - OSRM Version)")
+st.title("🚕 Ride App AI (Fuzzy + OSRM)")
+
+eco_input = st.slider("🌱 Eco Friendly", 0.0, 10.0, 5.0)
+privacy_input = st.slider("🔒 Privacy", 0.0, 10.0, 5.0)
+budget_input = st.slider("💰 Budget", 0.0, 100.0, 50.0)
 
 col1, col2 = st.columns(2)
 
@@ -80,6 +120,9 @@ if st.button("🚀 Tìm chuyến đi"):
     pickup = geocode(pickup_address)
     destination = geocode(destination_address)
 
+    st.write("DEBUG pickup:", pickup)
+    st.write("DEBUG destination:", destination)
+
     if not pickup or not destination:
         st.error("❌ Không tìm được địa chỉ (hãy nhập rõ hơn)")
         st.stop()
@@ -90,30 +133,40 @@ if st.button("🚀 Tìm chuyến đi"):
         st.error("❌ Không tìm được đường đi")
         st.stop()
 
-    # ===================== VEHICLES =====================
-    vehicles = [
-        {"name": "BIKE 🏍️", "base": 8, "per_km": 5, "val": 2},
-        {"name": "CAR 🚗", "base": 15, "per_km": 8, "val": 5},
-        {"name": "PREMIUM 🚘", "base": 25, "per_km": 12, "val": 8},
-    ]
+    # ===== FUZZY 1: CHỌN XE =====
+    sim_v = ctrl.ControlSystemSimulation(vehicle_system)
+    sim_v.input['eco'] = eco_input
+    sim_v.input['privacy'] = privacy_input
+    sim_v.input['budget'] = budget_input
+    sim_v.compute()
 
-    st.markdown("## 🚗 Chọn loại xe")
+    v = sim_v.output['vehicle_type']
 
-    selected = None
+    if v < 4:
+        best_vehicle = "BIKE 🏍️"
+        v_val = 2
+    elif v < 7:
+        best_vehicle = "CAR 🚗"
+        v_val = 5
+    else:
+        best_vehicle = "PREMIUM 🚘"
+        v_val = 8
 
-    for v in vehicles:
-        sim = ctrl.ControlSystemSimulation(cost_system)
-        sim.input['vehicle_input'] = v["val"]
-        sim.input['real_distance'] = dist
-        sim.compute()
+    st.success(f"🚗 Xe AI đề xuất: {best_vehicle}")
 
-        fuzzy_price = sim.output['total_cost']
-        price = v["base"] + v["per_km"] * dist + fuzzy_price
+    # ===== FUZZY 2: TÍNH GIÁ =====
+    sim_cost = ctrl.ControlSystemSimulation(cost_system)
+    sim_cost.input['vehicle_input'] = v_val
+    sim_cost.input['real_distance'] = dist
+    sim_cost.compute()
 
-        if st.button(f"{v['name']} | {round(price,1)}k | {round(time)} phút"):
-            selected = (v, price)
+    final_cost = sim_cost.output['total_cost']
 
-    # ===================== MAP =====================
+    st.info(f"📏 Quãng đường: {round(dist,2)} km")
+    st.info(f"⏱️ Thời gian: {round(time,1)} phút")
+    st.warning(f"💰 Giá dự đoán: {round(final_cost,1)}k VND")
+
+    # ===== MAP =====
     m = folium.Map(location=pickup, zoom_start=14)
 
     folium.Marker(pickup, popup="Pickup").add_to(m)
@@ -122,10 +175,3 @@ if st.button("🚀 Tìm chuyến đi"):
     folium.PolyLine(route, color="green", weight=6).add_to(m)
 
     html(m._repr_html_(), height=500)
-
-    # ===================== RESULT =====================
-    if selected:
-        v, price = selected
-        st.success(f"🚕 Đã chọn: {v['name']}")
-        st.info(f"💰 Giá: {round(price,1)}k VND")
-        st.info(f"⏱️ ETA: {round(time)} phút")
