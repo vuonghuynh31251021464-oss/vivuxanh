@@ -22,6 +22,7 @@ places = {
     "Aeon Mall Tân Phú": (10.8015, 106.6187),
 }
 
+# ===================== TÌM ĐỊA CHỈ =====================
 def find_place(user_input):
     if not user_input:
         return None
@@ -68,23 +69,6 @@ pricing = {
     "PREMIUM 🚘": {"base": 30000, "per_km": 12000, "per_min": 600},
 }
 
-# ===================== FUZZY HỆ SỐ =====================
-factor = ctrl.Antecedent(np.arange(0, 10, 1), 'factor_input')
-coef = ctrl.Consequent(np.arange(0.8, 1.6, 0.1), 'coef')
-
-factor['low'] = fuzz.trimf(factor.universe, [0,0,5])
-factor['high'] = fuzz.trimf(factor.universe, [5,10,10])
-
-coef['normal'] = fuzz.trimf(coef.universe, [0.8,1,1.2])
-coef['high'] = fuzz.trimf(coef.universe, [1.1,1.4,1.6])
-
-rules_factor = [
-    ctrl.Rule(factor['low'], coef['normal']),
-    ctrl.Rule(factor['high'], coef['high']),
-]
-
-factor_ctrl = ctrl.ControlSystem(rules_factor)
-
 # ===================== OSRM =====================
 def route(p1, p2):
     url = f"http://router.project-osrm.org/route/v1/driving/{p1[1]},{p1[0]};{p2[1]},{p2[0]}?overview=full&geometries=geojson"
@@ -97,11 +81,32 @@ def route(p1, p2):
 
     return d,t,coords
 
-# ===================== INPUT =====================
+# ===================== HƯỚNG DẪN =====================
 st.markdown("### 📍 Nhập địa chỉ")
-p1_input = st.text_input("Điểm đón", placeholder="Chợ Bến Thành")
-p2_input = st.text_input("Điểm đến", placeholder="Landmark 81")
 
+st.info("""
+💡 **Cách nhập đúng (rất quan trọng):**
+- Ghi: **Tên địa điểm + Quận**
+- Ví dụ:
+    • Chợ Bến Thành, Quận 1  
+    • Landmark 81, Bình Thạnh  
+    • Đại học Kinh tế TP.HCM  
+
+⚠️ Tránh:
+- ❌ Viết tắt (UEH, BK)
+- ❌ Thiếu quận / khu vực
+- ❌ Sai chính tả
+""")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1")
+
+with col2:
+    p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh")
+
+# ===================== FUZZY INPUT =====================
 eco_val = st.slider("🌱 Eco",0.0,10.0,5.0)
 privacy_val = st.slider("🔒 Privacy",0.0,10.0,5.0)
 budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
@@ -112,13 +117,19 @@ if st.button("🚀 Tìm xe"):
     start = find_place(p1_input)
     end = find_place(p2_input)
 
-    if not start or not end:
-        st.error("❌ Địa chỉ không hợp lệ")
+    if not start:
+        st.error("❌ Không tìm thấy điểm đón")
+        st.warning("👉 Gợi ý: Chợ Bến Thành, Quận 1")
+        st.stop()
+
+    if not end:
+        st.error("❌ Không tìm thấy điểm đến")
+        st.warning("👉 Gợi ý: Landmark 81, Bình Thạnh")
         st.stop()
 
     d,t,coords = route(start,end)
 
-    # ===== CHỌN XE =====
+    # ===== FUZZY CHỌN XE =====
     sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
     sim.input['eco'] = eco_val
     sim.input['privacy'] = privacy_val
@@ -134,27 +145,18 @@ if st.button("🚀 Tìm xe"):
     else:
         name="PREMIUM 🚘"
 
-    # ===== GIÁ =====
+    # ===== TÍNH GIÁ =====
     p = pricing[name]
     base = p["base"]
     dist_cost = d * p["per_km"]
     time_cost = t * p["per_min"]
 
-    raw_price = base + dist_cost + time_cost
-
-    # ===== HỆ SỐ AI =====
-    sim2 = ctrl.ControlSystemSimulation(factor_ctrl)
-    sim2.input['factor_input'] = (eco_val + budget_val/10)
-    sim2.compute()
-
-    coef_val = sim2.output.get('coef',1)
-
-    final_price = raw_price * coef_val
+    final_price = base + dist_cost + time_cost
 
     # ===== MAP =====
     m = folium.Map(location=start, zoom_start=14)
-    folium.Marker(start).add_to(m)
-    folium.Marker(end).add_to(m)
+    folium.Marker(start, popup="Pickup").add_to(m)
+    folium.Marker(end, popup="Destination").add_to(m)
     folium.PolyLine(coords,color="green",weight=6).add_to(m)
 
     html(m._repr_html_(),height=500)
@@ -163,10 +165,8 @@ if st.button("🚀 Tìm xe"):
     st.success(f"🚗 Xe: {name}")
     st.info(f"📏 {round(d,2)} km | ⏱ {round(t,1)} phút")
 
-    st.info(f"💵 Base: {round(base/1000,1)}k")
-    st.info(f"🛣️ Km: {round(dist_cost/1000,1)}k")
-    st.info(f"⏱️ Time: {round(time_cost/1000,1)}k")
+    st.info(f"💵 Mở cửa: {round(base/1000,1)}k")
+    st.info(f"🛣️ Quãng đường: {round(dist_cost/1000,1)}k")
+    st.info(f"⏱️ Thời gian: {round(time_cost/1000,1)}k")
 
-    st.info(f"🤖 Hệ số: x{round(coef_val,2)}")
-
-    st.warning(f"💰 Giá cuối: {round(final_price/1000,1)}k VND")
+    st.warning(f"💰 Tổng giá: {round(final_price/1000,1)}k VND")
