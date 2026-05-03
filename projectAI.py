@@ -5,6 +5,8 @@ from streamlit.components.v1 import html
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
+import time
+from functools import lru_cache
 
 # ===================== UI =====================
 st.set_page_config(layout="wide", page_title="VivuXanh")
@@ -14,23 +16,42 @@ st.title("🚕 VivuXanh")
 if 'selected_vehicle' not in st.session_state:
     st.session_state.selected_vehicle = None
 
-# ===================== GEOCODING =====================
+# ===================== GEOCODING - ĐÃ KHẮC PHỤC LỖI 429 =====================
+@lru_cache(maxsize=50)
 def geocode(address):
+    """Geocoding có cache + delay để tránh lỗi 429"""
+    if not address or address.strip() == "":
+        return None
+    
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": address, "format": "json", "limit": 1}
-    headers = {"User-Agent": "vivuxanh-app"}
+    headers = {"User-Agent": "VivuXanh-App/1.0"}
+
     try:
+        time.sleep(1.1)  # Tránh bị chặn
         r = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if r.status_code == 429:
+            st.error("🌐 Quá nhiều yêu cầu. Vui lòng chờ 2-3 giây rồi thử lại.")
+            time.sleep(2)
+            return None
+            
         r.raise_for_status()
         data = r.json()
+        
         if data:
-            return (float(data[0]["lat"]), float(data[0]["lon"]))
-        return None
+            lat = float(data[0]["lat"])
+            lon = float(data[0]["lon"])
+            return (lat, lon)
+        else:
+            st.warning(f"⚠️ Không tìm thấy địa chỉ: **{address}**")
+            return None
+            
     except Exception as e:
         st.error(f"❌ Lỗi geocoding: {e}")
         return None
 
-# ===================== FUZZY LOGIC (giữ nguyên) =====================
+# ===================== FUZZY LOGIC =====================
 passengers = ctrl.Antecedent(np.arange(1, 9, 1), 'passengers')
 terrain = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'terrain')
 safety = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'safety')
@@ -93,41 +114,35 @@ with col1:
 with col2:
     p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh")
 
-# Chọn chế độ
 mode = st.radio("Chọn cách đặt xe:", 
                 ["Chọn xe thủ công", "Tôi không biết chọn xe nào (Gợi ý thông minh)"],
                 horizontal=True)
 
-# ===================== CHỌN XE THỦ CÔNG - CÓ HIGHLIGHT =====================
+# ===================== CHỌN XE THỦ CÔNG =====================
 if mode == "Chọn xe thủ công":
     st.markdown("#### 🚗 Chọn loại xe")
     cols = st.columns(4)
     
     vehicle_options = [
-        ("XE MÁY 🏍️", "🏍️", "Rẻ - Nhanh", "Xe máy"),
-        ("XE MÁY ĐIỆN ⚡", "⚡", "Thân thiện môi trường", "Xe máy điện"),
-        ("XE Ô TÔ 🚗", "🚗", "Thoải mái", "Xe ô tô"),
-        ("XE Ô TÔ ĐIỆN ⚡🚘", "🚘", "Cao cấp - Xanh", "Xe ô tô điện")
+        ("XE MÁY 🏍️", "🏍️", "Rẻ - Nhanh"),
+        ("XE MÁY ĐIỆN ⚡", "⚡", "Thân thiện môi trường"),
+        ("XE Ô TÔ 🚗", "🚗", "Thoải mái"),
+        ("XE Ô TÔ ĐIỆN ⚡🚘", "🚘", "Cao cấp - Xanh")
     ]
     
-    for i, (name, icon, desc, short) in enumerate(vehicle_options):
+    for i, (name, icon, desc) in enumerate(vehicle_options):
         with cols[i]:
-            # Nút có highlight khi được chọn
             is_selected = st.session_state.selected_vehicle == name
-            button_style = "primary" if is_selected else "secondary"
-            
             if st.button(f"{icon} **{name}**\n\n{desc}", 
                         key=f"btn_{name}", 
                         use_container_width=True,
-                        type=button_style):
+                        type="primary" if is_selected else "secondary"):
                 st.session_state.selected_vehicle = name
-                st.rerun()  # Cập nhật giao diện ngay
+                st.rerun()
 
-    # Lấy xe đã chọn
     vehicle_name = st.session_state.selected_vehicle
 
 else:
-    # Phần gợi ý thông minh (giữ nguyên)
     st.markdown("#### ⚙️ Thông số để gợi ý phương tiện phù hợp")
     colA, colB = st.columns(2)
     with colA:
@@ -142,7 +157,7 @@ else:
     terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
     vehicle_name = None
 
-# ===================== Yếu tố ảnh hưởng giá =====================
+# ===================== YẾU TỐ ẢNH HƯỞNG GIÁ =====================
 st.markdown("### 💵 Yếu tố ảnh hưởng giá")
 col3, col4 = st.columns(2)
 with col3:
@@ -159,6 +174,7 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
 
     start = geocode(p1_input)
     end = geocode(p2_input)
+    
     if not start or not end:
         st.stop()
 
@@ -184,7 +200,7 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
         elif v < 7.5: name = "XE Ô TÔ 🚗"
         else: name = "XE Ô TÔ ĐIỆN ⚡🚘"
 
-    # Tính giá và phần còn lại giữ nguyên như code trước...
+    # Tính giá
     p = pricing[name]
     final_price = p["base"] + d * p["per_km"] + t * p["per_min"]
 
@@ -194,13 +210,14 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
 
     final_price = int(final_price / 1000) * 1000
 
-    # Bản đồ + Kết quả (giữ nguyên phần dưới của code cũ)
+    # Bản đồ
     m = folium.Map(location=start, zoom_start=14, tiles="cartodbpositron")
     folium.Marker(start, popup="Điểm đón", icon=folium.Icon(color="green")).add_to(m)
     folium.Marker(end, popup="Điểm đến", icon=folium.Icon(color="red")).add_to(m)
     folium.PolyLine(coords, color="#00C853", weight=6).add_to(m)
     html(m._repr_html_(), height=480)
 
+    # Kết quả
     st.subheader("✅ Chuyến đi của bạn")
     colA, colB, colC = st.columns(3)
     colA.metric("Loại xe", name)
@@ -208,5 +225,4 @@ if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
     colC.metric("Thời gian", f"{round(t,1)} phút")
 
     st.info(f"⏱️ Xe dự kiến đến sau **{max(3, int(t//3))} phút**")
-
     st.success(f"**Tổng tiền: {final_price:,} VND**", icon="💵")
