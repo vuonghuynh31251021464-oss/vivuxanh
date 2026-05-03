@@ -5,32 +5,12 @@ from streamlit.components.v1 import html
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
-import time
 
-# ===================== STYLE (GRAB UI) =====================
+# ===================== UI =====================
 st.set_page_config(layout="wide")
+st.title("🚕 Grab AI (Stable Version)")
 
-st.markdown("""
-<style>
-body {background-color:#0e1117;}
-.block-container {padding-top: 1rem;}
-.card {
-    background: #1c1f26;
-    padding: 15px;
-    border-radius: 15px;
-    margin-bottom: 10px;
-    color: white;
-}
-.big-title {
-    font-size: 28px;
-    font-weight: bold;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="big-title">🚕 Grab AI (FREE)</div>', unsafe_allow_html=True)
-
-# ===================== AUTOCOMPLETE DATA =====================
+# ===================== DATA =====================
 places = {
     "Chợ Bến Thành, Quận 1": (10.772, 106.698),
     "Sân bay Tân Sơn Nhất": (10.8188, 106.6519),
@@ -43,12 +23,13 @@ places = {
 }
 
 def suggest(q):
-    return [k for k in places if q.lower() in k.lower()]
+    return [k for k in places if q.lower() in k.lower()] if q else list(places.keys())
 
 # ===================== FUZZY CHỌN XE =====================
 eco = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco')
 privacy = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'privacy')
 budget = ctrl.Antecedent(np.arange(0, 100.1, 0.1), 'budget')
+
 vehicle = ctrl.Consequent(np.arange(0, 10.1, 0.1), 'vehicle')
 
 eco['low'] = fuzz.trimf(eco.universe, [0,0,5])
@@ -64,10 +45,12 @@ vehicle['bike'] = fuzz.trimf(vehicle.universe, [0,0,4])
 vehicle['car'] = fuzz.trimf(vehicle.universe, [3,5,7])
 vehicle['premium'] = fuzz.trimf(vehicle.universe, [6,10,10])
 
+# ✅ FIX: thêm eco vào rule
 rules = [
     ctrl.Rule(budget['low'], vehicle['bike']),
     ctrl.Rule(privacy['high'], vehicle['car']),
     ctrl.Rule(budget['high'] & privacy['high'], vehicle['premium']),
+    ctrl.Rule(eco['high'] & budget['low'], vehicle['bike']),
 ]
 
 vehicle_ctrl = ctrl.ControlSystem(rules)
@@ -113,16 +96,24 @@ eco_val = st.slider("🌱 Eco",0.0,10.0,5.0)
 privacy_val = st.slider("🔒 Privacy",0.0,10.0,5.0)
 budget_val = st.slider("💰 Budget",0.0,100.0,50.0)
 
-q1 = st.text_input("📍 Điểm đón")
-p1_list = suggest(q1)
-p1 = st.selectbox("Chọn điểm đón", p1_list)
+col1, col2 = st.columns(2)
 
-q2 = st.text_input("📍 Điểm đến")
-p2_list = suggest(q2)
-p2 = st.selectbox("Chọn điểm đến", p2_list)
+with col1:
+    q1 = st.text_input("📍 Điểm đón", key="pickup_input")
+    p1_list = suggest(q1)
+    p1 = st.selectbox("Chọn điểm đón", p1_list, key="pickup_select")
+
+with col2:
+    q2 = st.text_input("📍 Điểm đến", key="dest_input")
+    p2_list = suggest(q2)
+    p2 = st.selectbox("Chọn điểm đến", p2_list, key="dest_select")
 
 # ===================== RUN =====================
 if st.button("🚀 Tìm xe"):
+    if p1 == p2:
+        st.warning("⚠️ Điểm đón và điểm đến không được trùng")
+        st.stop()
+
     start = places[p1]
     end = places[p2]
 
@@ -152,22 +143,15 @@ if st.button("🚀 Tìm xe"):
 
     price = sim2.output['cost']
 
-    # ===================== MAP =====================
+    # ===== MAP =====
     m = folium.Map(location=start, zoom_start=14)
-    folium.Marker(start).add_to(m)
-    folium.Marker(end).add_to(m)
+    folium.Marker(start, popup="Pickup").add_to(m)
+    folium.Marker(end, popup="Destination").add_to(m)
     folium.PolyLine(coords,color="green",weight=6).add_to(m)
 
     html(m._repr_html_(),height=500)
 
-    # ===================== UI XE =====================
-    st.markdown("## 🚗 Xe đề xuất")
-
-    st.markdown(f"""
-    <div class="card">
-        <h3>{name}</h3>
-        <p>📏 {round(d,2)} km</p>
-        <p>⏱ {round(t,1)} phút</p>
-        <h2>💰 {round(price,1)}k VND</h2>
-    </div>
-    """, unsafe_allow_html=True)
+    # ===== RESULT =====
+    st.success(f"🚗 Xe đề xuất: {name}")
+    st.info(f"📏 {round(d,2)} km | ⏱ {round(t,1)} phút")
+    st.warning(f"💰 Giá: {round(price,1)}k VND")
