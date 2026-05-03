@@ -31,7 +31,6 @@ passengers = ctrl.Antecedent(np.arange(1, 9, 1), 'passengers')
 terrain = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'terrain')
 safety = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'safety')
 eco_friendly = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco_friendly')
-
 vehicle = ctrl.Consequent(np.arange(0, 10.1, 0.1), 'vehicle')
 
 passengers['low'] = fuzz.trimf(passengers.universe, [1, 1, 3])
@@ -101,7 +100,6 @@ vehicle_name = None
 if mode == "Chọn xe thủ công":
     vehicle_name = st.selectbox("Chọn loại xe", 
                                 ["XE MÁY 🏍️", "XE MÁY ĐIỆN ⚡", "XE Ô TÔ 🚗", "XE Ô TÔ ĐIỆN ⚡🚘"])
-
 else:
     st.markdown("#### ⚙️ Thông số để gợi ý phương tiện phù hợp")
     colA, colB = st.columns(2)
@@ -113,8 +111,13 @@ else:
     with colB:
         safety_val = st.slider("🛡️ Độ an toàn ưu tiên", 0.0, 10.0, 7.0, step=0.5)
         eco_val = st.slider("🌱 Độ thân thiện môi trường", 0.0, 10.0, 6.0, step=0.5)
-
     terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
+
+# ===================== Các yếu tố ảnh hưởng giá =====================
+st.markdown("### 💵 Yếu tố ảnh hưởng giá")
+peak_hour = st.checkbox("⏰ Giờ cao điểm (+30%)")
+bad_weather = st.checkbox("🌧️ Thời tiết xấu (+10%)")
+promo_code = st.text_input("🎁 Mã khuyến mãi (ví dụ: GIAM10)")
 
 # ===================== RUN =====================
 if st.button("🚀 Tìm xe", type="primary"):
@@ -140,9 +143,7 @@ if st.button("🚀 Tìm xe", type="primary"):
         sim.input['safety'] = safety_val
         sim.input['eco_friendly'] = eco_val
         sim.compute()
-        
         v = sim.output['vehicle']
-        
         if v < 3:
             name = "XE MÁY 🏍️"
         elif v < 5:
@@ -152,9 +153,20 @@ if st.button("🚀 Tìm xe", type="primary"):
         else:
             name = "XE Ô TÔ ĐIỆN ⚡🚘"
 
-    # Tính giá
+        # Tính giá cơ bản
     p = pricing[name]
-    final_price = int((p["base"] + d * p["per_km"] + t * p["per_min"]) / 1000) * 1000
+    final_price = p["base"] + d * p["per_km"] + t * p["per_min"]
+
+    # Áp dụng các yếu tố tăng/giảm
+    if peak_hour:
+        final_price *= 1.3   # tăng 30% giờ cao điểm
+    if bad_weather:
+        final_price *= 1.1   # tăng 10% khi thời tiết xấu
+    if promo_code.strip().upper() == "GIAM10":
+        final_price *= 0.9   # giảm 10% nếu có mã khuyến mãi
+
+    # Làm tròn giống Grab
+    final_price = int(final_price / 1000) * 1000
 
     # Hiển thị bản đồ
     m = folium.Map(location=start, zoom_start=14, tiles="cartodbpositron")
