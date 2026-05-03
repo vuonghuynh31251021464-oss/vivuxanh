@@ -51,7 +51,7 @@ def geocode(address):
         st.error(f"❌ Lỗi geocoding: {e}")
         return None
 
-# ===================== FUZZY & RULES =====================
+# ===================== FUZZY LOGIC =====================
 passengers = ctrl.Antecedent(np.arange(1, 9, 1), 'passengers')
 terrain = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'terrain')
 safety = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'safety')
@@ -111,134 +111,129 @@ left_col, right_col = st.columns([1, 1.35])
 with right_col:
     st.markdown("### 🗺️ Bản đồ")
     map_placeholder = st.empty()
-    # Bản đồ mặc định TP.HCM
     default_map = folium.Map(location=[10.7769, 106.7009], zoom_start=12, tiles="cartodbpositron")
     html(default_map._repr_html_(), height=720)
 
 with left_col:
-    # Nền xám bao quát toàn bộ chiều cao bên trái
-    st.markdown("""
-    <div style="background-color: #1a1a2e; 
-                padding: 25px; 
-                border-radius: 16px; 
-                min-height: 85vh;
-                border: 1px solid #2a2a40;">
-    """, unsafe_allow_html=True)
+    with st.container():
+        st.markdown("""
+        <div style="background-color: #1a1a2e; 
+                    padding: 25px; 
+                    border-radius: 16px; 
+                    min-height: 85vh;
+                    border: 1px solid #2a2a40;">
+        """, unsafe_allow_html=True)
 
-    st.markdown("### 📍 Nhập địa chỉ")
-    col1, col2 = st.columns(2)
-    with col1:
-        p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1, TP.HCM")
-    with col2:
-        p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh, TP.HCM")
+        st.markdown("### 📍 Nhập địa chỉ")
+        col1, col2 = st.columns(2)
+        with col1:
+            p1_input = st.text_input("📍 Điểm đón", placeholder="VD: Chợ Bến Thành, Quận 1, TP.HCM")
+        with col2:
+            p2_input = st.text_input("📍 Điểm đến", placeholder="VD: Landmark 81, Bình Thạnh, TP.HCM")
 
-    mode = st.radio("Chọn cách đặt xe:", 
-                    ["Chọn xe thủ công", "Tôi không biết chọn xe nào (Gợi ý thông minh)"], 
-                    horizontal=True)
+        mode = st.radio("Chọn cách đặt xe:", 
+                        ["Chọn xe thủ công", "Tôi không biết chọn xe nào (Gợi ý thông minh)"], 
+                        horizontal=True)
 
-    if mode == "Chọn xe thủ công":
-        st.markdown("#### 🚗 Chọn loại xe")
-        cols = st.columns(4)
-        vehicle_options = [
-            ("XE MÁY 🏍️", "🏍️", "Rẻ - Nhanh"),
-            ("XE MÁY ĐIỆN ⚡", "⚡", "Thân thiện môi trường"),
-            ("XE Ô TÔ 🚗", "🚗", "Thoải mái"),
-            ("XE Ô TÔ ĐIỆN ⚡🚘", "🚘", "Cao cấp - Xanh")
-        ]
-        for i, (name, icon, desc) in enumerate(vehicle_options):
-            with cols[i]:
-                is_selected = st.session_state.selected_vehicle == name
-                if st.button(f"{icon} **{name}**\n\n{desc}", 
-                            key=f"btn_{name}", 
-                            use_container_width=True,
-                            type="primary" if is_selected else "secondary"):
-                    st.session_state.selected_vehicle = name
-                    st.rerun()
-        vehicle_name = st.session_state.selected_vehicle
-    else:
-        st.markdown("#### ⚙️ Thông số gợi ý")
-        colA, colB = st.columns(2)
-        with colA:
-            num_passengers = st.slider("👥 Số lượng người", 1, 8, 1)
-            terrain_val = st.select_slider("🛤️ Địa hình", 
-                                          options=["Bằng phẳng", "Có dốc", "Gồ ghề"], 
-                                          value="Bằng phẳng")
-        with colB:
-            safety_val = st.slider("🛡️ Độ an toàn", 0.0, 10.0, 7.0, step=0.5)
-            eco_val = st.slider("🌱 Thân thiện môi trường", 0.0, 10.0, 6.0, step=0.5)
-        
-        terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
-        vehicle_name = None
+        if mode == "Chọn xe thủ công":
+            st.markdown("#### 🚗 Chọn loại xe")
+            cols = st.columns(4)
+            vehicle_options = [
+                ("XE MÁY 🏍️", "🏍️", "Rẻ - Nhanh"),
+                ("XE MÁY ĐIỆN ⚡", "⚡", "Thân thiện môi trường"),
+                ("XE Ô TÔ 🚗", "🚗", "Thoải mái"),
+                ("XE Ô TÔ ĐIỆN ⚡🚘", "🚘", "Cao cấp - Xanh")
+            ]
+            for i, (name, icon, desc) in enumerate(vehicle_options):
+                with cols[i]:
+                    is_selected = st.session_state.selected_vehicle == name
+                    if st.button(f"{icon} **{name}**\n\n{desc}", 
+                                key=f"btn_{name}", 
+                                use_container_width=True,
+                                type="primary" if is_selected else "secondary"):
+                        st.session_state.selected_vehicle = name
+                        st.rerun()
+            vehicle_name = st.session_state.selected_vehicle
+        else:
+            st.markdown("#### ⚙️ Thông số gợi ý")
+            colA, colB = st.columns(2)
+            with colA:
+                num_passengers = st.slider("👥 Số lượng người", 1, 8, 1)
+                terrain_val = st.select_slider("🛤️ Địa hình", 
+                                              options=["Bằng phẳng", "Có dốc", "Gồ ghề"], 
+                                              value="Bằng phẳng")
+            with colB:
+                safety_val = st.slider("🛡️ Độ an toàn", 0.0, 10.0, 7.0, step=0.5)
+                eco_val = st.slider("🌱 Thân thiện môi trường", 0.0, 10.0, 6.0, step=0.5)
+            
+            terrain_map = {"Bằng phẳng": 2, "Có dốc": 6, "Gồ ghề": 9}
+            vehicle_name = None
 
-    st.markdown("### 💵 Yếu tố ảnh hưởng giá")
-    col3, col4 = st.columns(2)
-    with col3:
-        peak_hour = st.checkbox("⏰ Giờ cao điểm (+30%)")
-        bad_weather = st.checkbox("🌧️ Thời tiết xấu (+10%)")
-    with col4:
-        promo_code = st.text_input("🎁 Mã khuyến mãi", placeholder="GIAM10")
+        st.markdown("### 💵 Yếu tố ảnh hưởng giá")
+        col3, col4 = st.columns(2)
+        with col3:
+            peak_hour = st.checkbox("⏰ Giờ cao điểm (+30%)")
+            bad_weather = st.checkbox("🌧️ Thời tiết xấu (+10%)")
+        with col4:
+            promo_code = st.text_input("🎁 Mã khuyến mãi", placeholder="GIAM10")
 
-    st.markdown("### 💳 Phương thức thanh toán")
-    payment_options = {"Tiền mặt": "💵", "Momo": "📱", "ZaloPay": "💰", "VNPay": "🏦", "Thẻ tín dụng": "💳"}
-    payment_method = st.selectbox("Chọn phương thức thanh toán",
-                                  options=list(payment_options.keys()),
-                                  format_func=lambda x: f"{payment_options[x]} {x}")
+        st.markdown("### 💳 Phương thức thanh toán")
+        payment_options = {"Tiền mặt": "💵", "Momo": "📱", "ZaloPay": "💰", "VNPay": "🏦", "Thẻ tín dụng": "💳"}
+        payment_method = st.selectbox("Chọn phương thức thanh toán",
+                                      options=list(payment_options.keys()),
+                                      format_func=lambda x: f"{payment_options[x]} {x}")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        # Nút tìm xe nằm trong khung xám
+        if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
+            if not p1_input or not p2_input:
+                st.error("Vui lòng nhập đầy đủ điểm đón và điểm đến")
+            else:
+                start = geocode(p1_input)
+                end = geocode(p2_input)
+                if start and end:
+                    d, t, coords = route(start, end)
 
-# ===================== BUTTON & KẾT QUẢ =====================
-if st.button("🚀 Tìm xe ngay", type="primary", use_container_width=True):
-    if not p1_input or not p2_input:
-        st.error("Vui lòng nhập đầy đủ điểm đón và điểm đến")
-        st.stop()
+                    if mode == "Chọn xe thủ công":
+                        if not vehicle_name:
+                            st.error("Vui lòng chọn loại xe")
+                        else:
+                            name = vehicle_name
+                    else:
+                        sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
+                        sim.input['passengers'] = num_passengers
+                        sim.input['terrain'] = terrain_map[terrain_val]
+                        sim.input['safety'] = safety_val
+                        sim.input['eco_friendly'] = eco_val
+                        sim.compute()
+                        v = sim.output['vehicle']
+                        if v < 3: name = "XE MÁY 🏍️"
+                        elif v < 5: name = "XE MÁY ĐIỆN ⚡"
+                        elif v < 7.5: name = "XE Ô TÔ 🚗"
+                        else: name = "XE Ô TÔ ĐIỆN ⚡🚘"
 
-    start = geocode(p1_input)
-    end = geocode(p2_input)
-    if not start or not end:
-        st.stop()
+                    p = pricing[name]
+                    final_price = p["base"] + d * p["per_km"] + t * p["per_min"]
+                    if peak_hour: final_price *= 1.3
+                    if bad_weather: final_price *= 1.1
+                    if promo_code.strip().upper() == "GIAM10": final_price *= 0.9
+                    final_price = int(final_price / 1000) * 1000
 
-    d, t, coords = route(start, end)
+                    # Cập nhật bản đồ
+                    m = folium.Map(location=start, zoom_start=14, tiles="cartodbpositron")
+                    folium.Marker(start, popup="Điểm đón", icon=folium.Icon(color="green")).add_to(m)
+                    folium.Marker(end, popup="Điểm đến", icon=folium.Icon(color="red")).add_to(m)
+                    folium.PolyLine(coords, color="#00ff88", weight=6).add_to(m)
+                    with map_placeholder:
+                        html(m._repr_html_(), height=720)
 
-    if mode == "Chọn xe thủ công":
-        if not vehicle_name:
-            st.error("Vui lòng chọn loại xe")
-            st.stop()
-        name = vehicle_name
-    else:
-        sim = ctrl.ControlSystemSimulation(vehicle_ctrl)
-        sim.input['passengers'] = num_passengers
-        sim.input['terrain'] = terrain_map[terrain_val]
-        sim.input['safety'] = safety_val
-        sim.input['eco_friendly'] = eco_val
-        sim.compute()
-        v = sim.output['vehicle']
-        if v < 3: name = "XE MÁY 🏍️"
-        elif v < 5: name = "XE MÁY ĐIỆN ⚡"
-        elif v < 7.5: name = "XE Ô TÔ 🚗"
-        else: name = "XE Ô TÔ ĐIỆN ⚡🚘"
+                    st.subheader("✅ Chuyến đi của bạn")
+                    colA, colB, colC = st.columns(3)
+                    colA.metric("Loại xe", name)
+                    colB.metric("Quãng đường", f"{round(d,2)} km")
+                    colC.metric("Thời gian", f"{round(t,1)} phút")
 
-    p = pricing[name]
-    final_price = p["base"] + d * p["per_km"] + t * p["per_min"]
-    if peak_hour: final_price *= 1.3
-    if bad_weather: final_price *= 1.1
-    if promo_code.strip().upper() == "GIAM10": final_price *= 0.9
-    final_price = int(final_price / 1000) * 1000
+                    st.info(f"⏱️ Xe dự kiến đến sau **{max(3, int(t//3))} phút**")
+                    st.success(f"**Tổng tiền: {final_price:,} VND**", icon="💵")
+                    st.info(f"💳 **Thanh toán bằng:** {payment_options[payment_method]} **{payment_method}**")
 
-    # Cập nhật bản đồ
-    m = folium.Map(location=start, zoom_start=14, tiles="cartodbpositron")
-    folium.Marker(start, popup="Điểm đón", icon=folium.Icon(color="green")).add_to(m)
-    folium.Marker(end, popup="Điểm đến", icon=folium.Icon(color="red")).add_to(m)
-    folium.PolyLine(coords, color="#00ff88", weight=6).add_to(m)
-    
-    with map_placeholder:
-        html(m._repr_html_(), height=720)
-
-    st.subheader("✅ Chuyến đi của bạn")
-    colA, colB, colC = st.columns(3)
-    colA.metric("Loại xe", name)
-    colB.metric("Quãng đường", f"{round(d,2)} km")
-    colC.metric("Thời gian", f"{round(t,1)} phút")
-
-    st.info(f"⏱️ Xe dự kiến đến sau **{max(3, int(t//3))} phút**")
-    st.success(f"**Tổng tiền: {final_price:,} VND**", icon="💵")
-    st.info(f"💳 **Thanh toán bằng:** {payment_options[payment_method]} **{payment_method}**")
+        st.markdown("</div>", unsafe_allow_html=True)
