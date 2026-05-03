@@ -4,7 +4,7 @@ import folium
 from streamlit.components.v1 import html
 import random
 from datetime import datetime
-from functools import lru_cache   # ← Đây là dòng bị thiếu
+from functools import lru_cache
 
 st.set_page_config(layout="wide", page_title="VivuXanh")
 st.title("🚕 VivuXanh")
@@ -41,18 +41,25 @@ pricing = {
     "XE Ô TÔ ĐIỆN ⚡🚘": {"base": 35000, "per_km": 13000, "per_min": 700},
 }
 
-# ================= FUNCTIONS =================
+# ================= GEOCODE (ĐÃ ĐỔI) =================
 @lru_cache(maxsize=100)
 def geocode(address):
     if not address:
         return None
     try:
-        r = requests.get("https://photon.komoot.io/api/", params={"q": address, "limit": 1}, timeout=5)
-        if r.status_code == 200:
-            data = r.json()
-            if data.get("features"):
-                coords = data["features"][0]["geometry"]["coordinates"]
-                return (coords[1], coords[0])
+        # Sử dụng Nominatim - tốt hơn cho địa chỉ Việt Nam
+        headers = {'User-Agent': 'VivuXanhApp/1.0'}
+        r = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": address + ", Ho Chi Minh City", "format": "json", "limit": 1},
+            headers=headers,
+            timeout=6
+        )
+        data = r.json()
+        if data:
+            lat = float(data[0]['lat'])
+            lon = float(data[0]['lon'])
+            return (lat, lon)
     except:
         pass
     return None
@@ -88,7 +95,7 @@ with left_col:
     with col1:
         p1_input = st.text_input("Điểm đón", placeholder="Ví dụ: Bến Thành, Quận 1")
     with col2:
-        p2_input = st.text_input("Điểm đến", placeholder="Ví dụ: Landmark 81")
+        p2_input = st.text_input("Điểm đến", placeholder="Ví dụ: Landmark 81, Quận Bình Thạnh")
 
     vehicle_name = st.selectbox("Chọn xe", list(pricing.keys()))
 
@@ -109,21 +116,20 @@ with left_col:
     payment_method = st.selectbox("Chọn phương thức thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
 
     if st.button("🚀 Tìm xe", type="primary", use_container_width=True):
-        with st.spinner("Đang tìm xe và tính toán tuyến đường..."):
+        with st.spinner("Đang tìm vị trí và tính toán..."):
             start = geocode(p1_input)
             end = geocode(p2_input)
 
-            if not p1_input or not p2_input:
-                st.warning("Vui lòng nhập đầy đủ điểm đón và điểm đến")
-            elif not start:
-                st.error("❌ Không tìm thấy **Điểm đón**. Hãy thử nhập cụ thể hơn (ví dụ: Bến Thành, Quận 1)")
+            if not start:
+                st.error(f"❌ Không tìm thấy **Điểm đón**: `{p1_input}`")
+                st.info("💡 Gợi ý: Bến Thành, Quận 1 | Bitexco | Aeon Mall Tân Phú | Đại học Bách Khoa")
             elif not end:
-                st.error("❌ Không tìm thấy **Điểm đến**. Hãy thử nhập cụ thể hơn")
+                st.error(f"❌ Không tìm thấy **Điểm đến**: `{p2_input}`")
             else:
                 d, t, coords = route(start, end)
                 
                 if d is None:
-                    st.error("❌ Không thể tính được tuyến đường. Vui lòng thử lại.")
+                    st.error("❌ Không thể tính tuyến đường. Thử lại sau.")
                 else:
                     driver = random.choice(driver_names)
                     rating = round(random.uniform(4.0, 5.0), 1)
@@ -134,12 +140,12 @@ with left_col:
                     folium.Marker(start, popup="Điểm đón").add_to(m)
                     folium.Marker(end, popup="Điểm đến").add_to(m)
                     if coords:
-                        folium.PolyLine(coords, color="blue", weight=4).add_to(m)
-                    
+                        folium.PolyLine(coords, color="#0066ff", weight=5, opacity=0.8).add_to(m)
+
                     with map_placeholder:
                         html(m._repr_html_(), height=720)
 
-                    # Tính tiền
+                    # Tính giá
                     p = pricing[vehicle_name]
                     price = p["base"] + d * p["per_km"] + t * p["per_min"]
                     if is_peak_hour:
@@ -149,14 +155,13 @@ with left_col:
                         price *= 0.9
                     price = int(price / 1000) * 1000
 
-                    # Hiển thị kết quả
-                    st.success("✅ Đã tìm thấy xe!")
-                    st.subheader("🚘 Thông tin chuyến đi")
+                    st.success("✅ Tìm thấy xe gần bạn!")
+                    st.subheader("🚘 Chuyến đi của bạn")
                     st.write(f"**{vehicle_name}** | **{model}**")
                     st.write(f"📏 {round(d,2)} km — ⏱️ {round(t,1)} phút")
 
                     st.markdown(f"""
-                    <div style="background:#16213e;padding:15px;border-radius:12px;margin:15px 0;">
+                    <div style="background:#16213e;padding:15px;border-radius:12px;">
                         👨‍✈️ <b>{driver}</b> &nbsp; ⭐ {rating}<br>
                         🛵 {model}<br>
                         ⏰ Xe đến sau khoảng <b>{max(3, int(t//3))} phút</b>
@@ -164,4 +169,4 @@ with left_col:
                     """, unsafe_allow_html=True)
 
                     st.success(f"💵 **Tổng tiền: {price:,} VND**")
-                    st.info(f"💳 Thanh toán: **{payment_method}**")
+                    st.info(f"💳 Thanh toán bằng: **{payment_method}**")
