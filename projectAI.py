@@ -157,7 +157,7 @@ if st.button("🚀 Tìm xe", type="primary"):
     p = pricing[name]
     final_price = p["base"] + d * p["per_km"] + t * p["per_min"]
 
-    # Áp dụng các yếu tố tăng/giảm
+        # Áp dụng các yếu tố tăng/giảm
     if peak_hour:
         final_price *= 1.3   # tăng 30% giờ cao điểm
     if bad_weather:
@@ -183,3 +183,4 @@ if st.button("🚀 Tìm xe", type="primary"):
     colC.metric("Thời gian", f"{round(t,1)} phút")
     
     st.success(f"💰 Giá ước tính: {final_price:,} VND")
+
