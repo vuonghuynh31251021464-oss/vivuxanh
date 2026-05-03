@@ -2,13 +2,13 @@ import streamlit as st
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import numpy as np
-from geopy.distance import geodesic
 import folium
 import random
+import requests
 from streamlit.components.v1 import html
+from geopy.geocoders import Nominatim
 
-# ===================== FUZZY 1: CHỌN XE =====================
-
+# ===================== FUZZY 1 =====================
 eco = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'eco')
 privacy = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'privacy')
 distance = ctrl.Antecedent(np.arange(0, 20.1, 0.1), 'distance')
@@ -16,7 +16,6 @@ base_cost = ctrl.Antecedent(np.arange(0, 100.1, 0.1), 'base_cost')
 
 vehicle_type = ctrl.Consequent(np.arange(0, 10.1, 0.1), 'vehicle_type')
 
-# Membership
 eco['low'] = fuzz.trimf(eco.universe, [0, 0, 5])
 eco['high'] = fuzz.trimf(eco.universe, [5, 10, 10])
 
@@ -44,23 +43,22 @@ rules = [
 
 system = ctrl.ControlSystem(rules)
 
-# ===================== FUZZY 2: TÍNH GIÁ =====================
-
+# ===================== FUZZY 2 =====================
 vehicle_input = ctrl.Antecedent(np.arange(0, 10.1, 0.1), 'vehicle_input')
-real_distance = ctrl.Antecedent(np.arange(0, 20.1, 0.1), 'real_distance')
+real_distance = ctrl.Antecedent(np.arange(0, 50.1, 0.1), 'real_distance')
 
-total_cost = ctrl.Consequent(np.arange(0, 200.1, 0.1), 'total_cost')
+total_cost = ctrl.Consequent(np.arange(0, 500.1, 0.1), 'total_cost')
 
 vehicle_input['bike'] = fuzz.trimf(vehicle_input.universe, [0, 0, 4])
 vehicle_input['car'] = fuzz.trimf(vehicle_input.universe, [3, 5, 7])
 vehicle_input['premium'] = fuzz.trimf(vehicle_input.universe, [6, 10, 10])
 
 real_distance['near'] = fuzz.trimf(real_distance.universe, [0, 0, 5])
-real_distance['far'] = fuzz.trimf(real_distance.universe, [5, 20, 20])
+real_distance['far'] = fuzz.trimf(real_distance.universe, [5, 50, 50])
 
-total_cost['low'] = fuzz.trimf(total_cost.universe, [0, 0, 80])
-total_cost['medium'] = fuzz.trimf(total_cost.universe, [50, 100, 150])
-total_cost['high'] = fuzz.trimf(total_cost.universe, [120, 200, 200])
+total_cost['low'] = fuzz.trimf(total_cost.universe, [0, 0, 100])
+total_cost['medium'] = fuzz.trimf(total_cost.universe, [80, 200, 350])
+total_cost['high'] = fuzz.trimf(total_cost.universe, [300, 500, 500])
 
 rules_cost = [
     ctrl.Rule(vehicle_input['bike'] & real_distance['near'], total_cost['low']),
@@ -72,22 +70,52 @@ rules_cost = [
 
 cost_system = ctrl.ControlSystem(rules_cost)
 
-# ===================== USER LOCATION =====================
-user_location = (10.7769, 106.7009)
+# ===================== GEOCODER =====================
+geolocator = Nominatim(user_agent="ride_app_ai")
+
+def get_location(address):
+    try:
+        loc = geolocator.geocode(address)
+        if loc:
+            return (loc.latitude, loc.longitude)
+    except:
+        return None
+    return None
+
+# ===================== ROUTING OSRM =====================
+def get_route(pickup, destination):
+    url = f"http://router.project-osrm.org/route/v1/driving/{pickup[1]},{pickup[0]};{destination[1]},{destination[0]}?overview=full&geometries=geojson"
+    r = requests.get(url)
+    data = r.json()
+
+    route = data['routes'][0]
+    distance_km = route['distance'] / 1000
+
+    coords = route['geometry']['coordinates']
+    route_coords = [(lat, lon) for lon, lat in coords]
+
+    return distance_km, route_coords
 
 # ===================== UI =====================
-st.title("🚗 Ride App AI (Fuzzy Logic)")
+st.title("🚗 Ride App AI (Fuzzy + Real Map)")
 
-eco_input = st.slider("Eco Friendly", 0.0, 10.0, 5.0)
-privacy_input = st.slider("Privacy", 0.0, 10.0, 5.0)
-distance_input = st.slider("Distance (estimate)", 0.0, 20.0, 5.0)
-budget_input = st.slider("Budget", 0.0, 100.0, 50.0)
+eco_input = st.slider("🌱 Eco Friendly", 0.0, 10.0, 5.0)
+privacy_input = st.slider("🔒 Privacy", 0.0, 10.0, 5.0)
+distance_input = st.slider("📏 Distance Estimate", 0.0, 20.0, 5.0)
+budget_input = st.slider("💰 Budget", 0.0, 100.0, 50.0)
 
-st.markdown("### 📍 Chọn điểm đón và điểm đến (demo)")
-pickup = st.text_input("Pickup (lat,lon)", "10.7769,106.7009")
-destination = st.text_input("Destination (lat,lon)", "10.78,106.68")
+st.markdown("### 📍 Nhập địa chỉ thật")
+pickup_address = st.text_input("Điểm đón", "Đại học UEH")
+destination_address = st.text_input("Điểm đến", "Chợ Bến Thành")
 
 if st.button("🚀 Tìm xe"):
+    pickup = get_location(pickup_address)
+    destination = get_location(destination_address)
+
+    if pickup is None or destination is None:
+        st.error("❌ Không tìm được địa chỉ")
+        st.stop()
+
     # ===== FUZZY 1 =====
     sim = ctrl.ControlSystemSimulation(system)
     sim.input['eco'] = eco_input
@@ -96,7 +124,7 @@ if st.button("🚀 Tìm xe"):
     sim.input['base_cost'] = budget_input
     sim.compute()
 
-    v = sim.output.get('vehicle_type', 5)
+    v = sim.output['vehicle_type']
 
     if v < 4:
         best_vehicle = "BIKE 🏍️"
@@ -108,29 +136,8 @@ if st.button("🚀 Tìm xe"):
         best_vehicle = "PREMIUM 🚘"
         v_val = 8
 
-    # ===== PARSE TOẠ ĐỘ =====
-    pickup = tuple(map(float, pickup.split(",")))
-    destination = tuple(map(float, destination.split(",")))
-
-    real_dist = geodesic(pickup, destination).km
-
-    # ===== RANDOM DRIVER =====
-    vehicle_list = ["BIKE 🏍️", "CAR 🚗", "PREMIUM 🚘"]
-    drivers = []
-
-    for _ in range(8):
-        loc = (user_location[0] + random.uniform(-0.02, 0.02),
-               user_location[1] + random.uniform(-0.02, 0.02))
-        veh = random.choice(vehicle_list)
-        dist = geodesic(user_location, loc).km
-        drivers.append((loc, veh, dist))
-
-    filtered = [x for x in drivers if x[1] == best_vehicle]
-    if not filtered:
-        filtered = drivers
-
-    best = min(filtered, key=lambda x: x[2])
-    best_loc, best_v, best_dist = best
+    # ===== ROUTE REAL =====
+    real_dist, route_coords = get_route(pickup, destination)
 
     # ===== FUZZY 2 =====
     cost_sim = ctrl.ControlSystemSimulation(cost_system)
@@ -140,25 +147,44 @@ if st.button("🚀 Tìm xe"):
 
     final_cost = cost_sim.output['total_cost']
 
+    # ===== DRIVER =====
+    drivers = []
+    vehicle_list = ["BIKE 🏍️", "CAR 🚗", "PREMIUM 🚘"]
+
+    for _ in range(8):
+        loc = (pickup[0] + random.uniform(-0.02, 0.02),
+               pickup[1] + random.uniform(-0.02, 0.02))
+        veh = random.choice(vehicle_list)
+        dist = ((loc[0]-pickup[0])**2 + (loc[1]-pickup[1])**2)**0.5
+        drivers.append((loc, veh, dist))
+
+    filtered = [x for x in drivers if x[1] == best_vehicle]
+    if not filtered:
+        filtered = drivers
+
+    best = min(filtered, key=lambda x: x[2])
+    best_loc, _, best_dist = best
+
     # ===== OUTPUT =====
     st.success(f"🚗 Xe phù hợp: {best_vehicle}")
-    st.info(f"📏 Quãng đường: {round(real_dist,2)} km")
-    st.warning(f"💰 Giá dự đoán: {round(final_cost,2)} VND")
-    st.info(f"👤 Tài xế gần nhất: {round(best_dist,2)} km")
+    st.info(f"📏 Quãng đường thật: {round(real_dist,2)} km")
+    st.warning(f"💰 Giá dự đoán: {round(final_cost,2)}")
+    st.info(f"👤 Tài xế gần nhất: {round(best_dist,3)} km")
 
     # ===== MAP =====
-    m = folium.Map(location=user_location, zoom_start=14)
+    m = folium.Map(location=pickup, zoom_start=14)
 
     folium.Marker(pickup, popup="Pickup").add_to(m)
     folium.Marker(destination, popup="Destination").add_to(m)
 
-    folium.PolyLine([pickup, destination], color="blue").add_to(m)
+    # đường thật
+    folium.PolyLine(route_coords, color="blue", weight=5).add_to(m)
 
     for loc, veh, dist in drivers:
         color = "green" if veh == best_vehicle else "gray"
         folium.Marker(
             loc,
-            popup=f"{veh} | {round(dist,2)} km",
+            popup=f"{veh}",
             icon=folium.Icon(color=color)
         ).add_to(m)
 
