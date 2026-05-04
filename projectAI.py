@@ -8,12 +8,10 @@ from functools import lru_cache
 
 st.set_page_config(layout="wide", page_title="VivuXanh", initial_sidebar_state="collapsed")
 
-# ================= CSS - DARK BLUE + Nút xe đẹp =================
+# ================= CSS =================
 st.markdown("""
 <style>
-    .main {
-        background-color: #0a2540;
-    }
+    .main { background-color: #0a2540; }
     .grab-header {
         background: #0a2540;
         padding: 12px 16px;
@@ -23,16 +21,15 @@ st.markdown("""
     .bottom-panel {
         background: #0f3460;
         color: white;
-        border-top: 1px solid #1e40af;
         padding: 16px;
         border-radius: 20px 20px 0 0;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+        border-top: 1px solid #1e40af;
     }
 
     /* Nút chọn xe */
     div[data-testid="stButton"] button {
         width: 100% !important;
-        height: 68px !important;
+        height: 70px !important;
         font-size: 15px;
         font-weight: 600;
         border-radius: 12px;
@@ -42,15 +39,16 @@ st.markdown("""
         transition: all 0.3s;
     }
     div[data-testid="stButton"] button:hover {
-        border-color: #60a5fa;
         background-color: #1e3a8a;
+        border-color: #60a5fa;
     }
-    /* Nút đang được chọn */
-    div[data-testid="stButton"] button[kind="secondary"] {
+    
+    /* Nút ĐANG ĐƯỢC CHỌN */
+    div[data-testid="stButton"] button[kind="primary"] {
         background-color: #0a2540 !important;
-        border-color: #60a5fa !important;
-        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.3);
-        transform: scale(1.04);
+        border: 3px solid #60a5fa !important;
+        box-shadow: 0 0 8px rgba(96, 165, 250, 0.5);
+        transform: scale(1.05);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -76,9 +74,11 @@ def geocode(address):
     if not address: return None
     try:
         headers = {'User-Agent': 'VivuXanhApp/1.0'}
-        r = requests.get("https://nominatim.openstreetmap.org/search",
+        r = requests.get(
+            "https://nominatim.openstreetmap.org/search",
             params={"q": address + ", Ho Chi Minh City", "format": "json", "limit": 1},
-            headers=headers, timeout=6)
+            headers=headers, timeout=6
+        )
         data = r.json()
         if data:
             return (float(data[0]['lat']), float(data[0]['lon']))
@@ -92,35 +92,30 @@ def route(p1, p2):
         data = r.json()
         if data.get('routes'):
             rd = data['routes'][0]
-            d = rd['distance']/1000
-            t = rd['duration']/60
-            coords = [(lat, lon) for lon, lat in rd['geometry']['coordinates']]
-            return d, t, coords
+            return rd['distance']/1000, rd['duration']/60, [(lat, lon) for lon, lat in rd['geometry']['coordinates']]
     except: pass
     return None, None, None
 
-# ================= HEADER =================
+# ================= HEADER & MAP =================
 st.markdown('<div class="grab-header"><h1 style="margin:0; font-size:28px; color:#60a5fa;">🚕 VivuXanh</h1></div>', unsafe_allow_html=True)
 st.caption(f"**{datetime.now().strftime('%A, %d/%m/%Y')} • {datetime.now().strftime('%H:%M')}**")
 
-# ================= MAP =================
 map_placeholder = st.empty()
 with map_placeholder:
-    default_m = folium.Map(location=[10.7769, 106.7009], zoom_start=13, tiles="cartodb dark_matter")
-    html(default_m._repr_html_(), height=580)
+    html(folium.Map(location=[10.7769, 106.7009], zoom_start=13, tiles="cartodb dark_matter")._repr_html_(), height=580)
 
 # ================= BOTTOM PANEL =================
 with st.container():
     st.markdown('<div class="bottom-panel">', unsafe_allow_html=True)
     
-    c1, c2 = st.columns([1, 0.08])
+    c1, c2 = st.columns([1, 0.1])
     with c1:
-        p1_input = st.text_input("📍 Điểm đón", placeholder="Nhập điểm đón", key="p1")
-        p2_input = st.text_input("🏁 Điểm đến", placeholder="Nhập điểm đến", key="p2")
+        p1 = st.text_input("📍 Điểm đón", placeholder="Nhập điểm đón", key="pickup")
+        p2 = st.text_input("🏁 Điểm đến", placeholder="Nhập điểm đến", key="dropoff")
     with c2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄"): 
-            p1_input, p2_input = p2_input, p1_input
+        if st.button("🔄", help="Hoán đổi"):
+            p1, p2 = p2, p1
 
     st.markdown("**Chọn phương tiện**")
     vehicle_options = list(pricing.keys())
@@ -128,32 +123,31 @@ with st.container():
     if "selected_vehicle" not in st.session_state:
         st.session_state.selected_vehicle = vehicle_options[0]
 
-    # Phần chọn xe - 1 nút duy nhất
+    # === CHỌN XE - 1 NÚT DUY NHẤT ===
     cols = st.columns(4)
-    for idx, v in enumerate(vehicle_options):
-        with cols[idx]:
-            # Button chính
-            if st.button(v, key=f"btn_{idx}", use_container_width=True):
-                st.session_state.selected_vehicle = v
+    for i, vehicle in enumerate(vehicle_options):
+        with cols[i]:
+            # Nếu là xe đang chọn thì dùng type="primary" để đổi màu
+            btn_type = "primary" if vehicle == st.session_state.selected_vehicle else "secondary"
+            
+            if st.button(vehicle, key=f"veh_{i}", type=btn_type, use_container_width=True):
+                st.session_state.selected_vehicle = vehicle
                 st.rerun()
 
     vehicle_name = st.session_state.selected_vehicle
 
-    # Thông tin khác
+    # Phần còn lại
     col1, col2 = st.columns(2)
     with col1:
-        is_peak = (7 <= datetime.now().hour <= 9) or (17 <= datetime.now().hour <= 20)
+        is_peak = (7 <= datetime.now().hour <=9) or (17 <= datetime.now().hour <=20)
         st.info(f"**Giờ cao điểm:** {'🔴 Có (+30%)' if is_peak else '🟢 Không'}")
     with col2:
-        weather = random.choice(["☀️ Nắng", "⛅ Ít mây", "🌧️ Mưa nhẹ", "⛈️ Mưa to"])
-        st.info(f"**Thời tiết:** {weather}")
+        st.info(f"**Thời tiết:** {random.choice(['☀️ Nắng','⛅ Ít mây','🌧️ Mưa nhẹ','⛈️ Mưa to'])}")
 
-    promo_code = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
-    payment_method = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
+    promo = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
+    pay = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
 
-    # Nút tìm xe (logic giữ nguyên như cũ)
     if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True):
-        # ... (Bạn dán phần logic tìm xe từ code cũ vào đây)
-        st.info("Đang phát triển phần logic...")   # tạm thời
+        st.success("Tính năng đang hoạt động... (dán logic cũ vào đây)")
 
     st.markdown('</div>', unsafe_allow_html=True)
