@@ -8,7 +8,7 @@ from functools import lru_cache
 
 st.set_page_config(layout="wide", page_title="VivuXanh", initial_sidebar_state="collapsed")
 
-# ================= CSS =================
+# ================= CSS - NÚT MÀU SÁNG =================
 st.markdown("""
 <style>
     .main { background-color: #0a2540; }
@@ -26,50 +26,48 @@ st.markdown("""
         border-top: 1px solid #1e40af;
     }
 
-    /* Nút chọn xe */
+    /* Nút chọn xe - Mặc định sáng */
     div[data-testid="stButton"] button {
         width: 100% !important;
         height: 70px !important;
         font-size: 15px;
         font-weight: 600;
         border-radius: 12px;
-        border: 2px solid #1e40af;
-        background-color: #1e40af;
+        border: 2px solid #60a5fa;
+        background-color: #1e90ff;
         color: white;
         transition: all 0.3s;
     }
     div[data-testid="stButton"] button:hover {
-        background-color: #1e3a8a;
+        background-color: #0a2540;
         border-color: #60a5fa;
+        transform: scale(1.05);
     }
     div[data-testid="stButton"] button[kind="primary"] {
         background-color: #0a2540 !important;
         border: 3px solid #60a5fa !important;
-        box-shadow: 0 0 8px rgba(96, 165, 250, 0.5);
-        transform: scale(1.05);
+        box-shadow: 0 0 10px rgba(96, 165, 250, 0.6);
     }
 
-    /* Nút TÌM XE - Đặc biệt */
+    /* Nút TÌM XE */
     .find-button button {
-        background-color: #0066ff !important;
+        background-color: #1e90ff !important;
         color: white !important;
         font-size: 18px;
         font-weight: bold;
         height: 60px !important;
+        border: 2px solid #60a5fa;
     }
     .find-button button:hover {
-        background-color: #1e90ff !important;
-    }
-    .find-button button:active {
         background-color: #0a2540 !important;
-        border: 3px solid #60a5fa !important;
+        border-color: #60a5fa;
     }
 
     .price-big { font-size: 32px; font-weight: 700; color: #60a5fa; }
 </style>
 """, unsafe_allow_html=True)
 
-# ================= DATA (giữ nguyên) =================
+# ================= DATA =================
 driver_names = ["Nguyễn Văn Nam", "Trần Minh Tuấn", "Lê Hoàng Phúc", "Phạm Quốc Bảo", "Đỗ Anh Khoa", "Hoàng Minh Đức"]
 vehicle_models = {
     "XE MÁY 🏍️": ["Honda Vision", "Yamaha Sirius", "Honda Wave"],
@@ -84,7 +82,7 @@ pricing = {
     "XE Ô TÔ ĐIỆN ⚡🚘": {"base": 35000, "per_km": 13000, "per_min": 700},
 }
 
-# ================= GEOCODE & ROUTE (giữ nguyên) =================
+# ================= GEOCODE & ROUTE =================
 @lru_cache(maxsize=100)
 def geocode(address):
     if not address: return None
@@ -115,11 +113,10 @@ def route(p1, p2):
     except: pass
     return None, None, None
 
-# ================= HEADER =================
+# ================= HEADER & MAP =================
 st.markdown('<div class="grab-header"><h1 style="margin:0; font-size:28px; color:#60a5fa;">🚕 VivuXanh</h1></div>', unsafe_allow_html=True)
 st.caption(f"**{datetime.now().strftime('%A, %d/%m/%Y')} • {datetime.now().strftime('%H:%M')}**")
 
-# ================= MAP =================
 map_placeholder = st.empty()
 with map_placeholder:
     html(folium.Map([10.7769, 106.7009], zoom_start=13, tiles="cartodb dark_matter")._repr_html_(), height=580)
@@ -163,14 +160,9 @@ with st.container():
     promo_code = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
     payment_method = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
 
-    # ================= NÚT TÌM XE =================
+    # Nút Tìm Xe
     st.markdown('<div class="find-button">', unsafe_allow_html=True)
-    if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True, key="find_button"):
-        pass  # Logic sẽ chạy bên dưới
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ================= LOGIC TÌM XE =================
-    if st.session_state.get("find_button", False):   # Cách này giúp button có trạng thái
+    if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True):
         with st.spinner("🔍 Đang tìm tài xế gần bạn..."):
             start = geocode(p1_input)
             end = geocode(p2_input)
@@ -185,14 +177,12 @@ with st.container():
                 if d is None:
                     st.error("❌ Không tính được tuyến đường")
                 else:
-                    # Bản đồ
                     m = folium.Map(location=start, zoom_start=15, tiles="cartodb dark_matter")
                     folium.Marker(start, popup="📍 Điểm đón", icon=folium.Icon(color="blue")).add_to(m)
                     folium.Marker(end, popup="🏁 Điểm đến", icon=folium.Icon(color="red")).add_to(m)
                     if coords:
                         folium.PolyLine(coords, color="#60a5fa", weight=5, opacity=0.85).add_to(m)
 
-                    # Tài xế
                     for _ in range(5):
                         folium.Marker(
                             (start[0] + random.uniform(-0.012, 0.012), start[1] + random.uniform(-0.012, 0.012)),
@@ -210,7 +200,6 @@ with st.container():
                     with map_placeholder:
                         html(m._repr_html_(), height=580)
 
-                    # Tính tiền
                     p = pricing[vehicle_name]
                     price = p["base"] + d * p["per_km"] + t * p["per_min"]
                     if is_peak: price *= 1.3
@@ -224,11 +213,10 @@ with st.container():
 
                     st.success("✅ Đã tìm thấy tài xế gần bạn!")
                     st.markdown(f"""
-                    <div style="background:#1e40af; padding:18px; border-radius:12px; border:2px solid #60a5fa;">
+                    <div style="background:#1e40af; padding:20px; border-radius:12px; border:2px solid #60a5fa; font-size:18px;">
                         <b>👨‍✈️ {driver}</b> • ⭐ {rating}<br>
-                        🚘 <b>{model}</b><br>
-                        📏 {d:.2f} km • ⏱️ {t:.1f} phút<br>
-                        ⏰ Xe đến sau <b>{max(3, int(t//3))} phút</b>
+                        🚘 <b>{model}</b><br><br>
+                        📏 <b>{d:.2f} km</b> • ⏱️ <b>{t:.1f} phút</b>
                     </div>
                     """, unsafe_allow_html=True)
                     
