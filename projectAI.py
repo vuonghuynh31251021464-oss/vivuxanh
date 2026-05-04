@@ -25,6 +25,8 @@ st.markdown("""
         border-radius: 20px 20px 0 0;
         border-top: 1px solid #1e40af;
     }
+
+    /* Nút chọn xe */
     div[data-testid="stButton"] button {
         width: 100% !important;
         height: 70px !important;
@@ -34,6 +36,7 @@ st.markdown("""
         border: 2px solid #1e40af;
         background-color: #1e40af;
         color: white;
+        transition: all 0.3s;
     }
     div[data-testid="stButton"] button:hover {
         background-color: #1e3a8a;
@@ -45,11 +48,28 @@ st.markdown("""
         box-shadow: 0 0 8px rgba(96, 165, 250, 0.5);
         transform: scale(1.05);
     }
+
+    /* Nút TÌM XE - Đặc biệt */
+    .find-button button {
+        background-color: #0066ff !important;
+        color: white !important;
+        font-size: 18px;
+        font-weight: bold;
+        height: 60px !important;
+    }
+    .find-button button:hover {
+        background-color: #1e90ff !important;
+    }
+    .find-button button:active {
+        background-color: #0a2540 !important;
+        border: 3px solid #60a5fa !important;
+    }
+
     .price-big { font-size: 32px; font-weight: 700; color: #60a5fa; }
 </style>
 """, unsafe_allow_html=True)
 
-# ================= DATA =================
+# ================= DATA (giữ nguyên) =================
 driver_names = ["Nguyễn Văn Nam", "Trần Minh Tuấn", "Lê Hoàng Phúc", "Phạm Quốc Bảo", "Đỗ Anh Khoa", "Hoàng Minh Đức"]
 vehicle_models = {
     "XE MÁY 🏍️": ["Honda Vision", "Yamaha Sirius", "Honda Wave"],
@@ -64,7 +84,7 @@ pricing = {
     "XE Ô TÔ ĐIỆN ⚡🚘": {"base": 35000, "per_km": 13000, "per_min": 700},
 }
 
-# ================= GEOCODE & ROUTE =================
+# ================= GEOCODE & ROUTE (giữ nguyên) =================
 @lru_cache(maxsize=100)
 def geocode(address):
     if not address: return None
@@ -119,7 +139,6 @@ with st.container():
 
     st.markdown("**Chọn phương tiện**")
     vehicle_options = list(pricing.keys())
-
     if "selected_vehicle" not in st.session_state:
         st.session_state.selected_vehicle = vehicle_options[0]
 
@@ -133,7 +152,6 @@ with st.container():
 
     vehicle_name = st.session_state.selected_vehicle
 
-    # === THỜI TIẾT - Đưa ra ngoài để dùng được ở dưới ===
     weather = random.choice(["☀️ Nắng", "⛅ Ít mây", "🌧️ Mưa nhẹ", "⛈️ Mưa to"])
     col1, col2 = st.columns(2)
     with col1:
@@ -145,9 +163,15 @@ with st.container():
     promo_code = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
     payment_method = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
 
-    # ================= TÌM XE =================
-    if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True):
-        with st.spinner("Đang tìm tài xế gần bạn..."):
+    # ================= NÚT TÌM XE =================
+    st.markdown('<div class="find-button">', unsafe_allow_html=True)
+    if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True, key="find_button"):
+        pass  # Logic sẽ chạy bên dưới
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ================= LOGIC TÌM XE =================
+    if st.session_state.get("find_button", False):   # Cách này giúp button có trạng thái
+        with st.spinner("🔍 Đang tìm tài xế gần bạn..."):
             start = geocode(p1_input)
             end = geocode(p2_input)
             
@@ -161,12 +185,14 @@ with st.container():
                 if d is None:
                     st.error("❌ Không tính được tuyến đường")
                 else:
+                    # Bản đồ
                     m = folium.Map(location=start, zoom_start=15, tiles="cartodb dark_matter")
                     folium.Marker(start, popup="📍 Điểm đón", icon=folium.Icon(color="blue")).add_to(m)
                     folium.Marker(end, popup="🏁 Điểm đến", icon=folium.Icon(color="red")).add_to(m)
                     if coords:
                         folium.PolyLine(coords, color="#60a5fa", weight=5, opacity=0.85).add_to(m)
 
+                    # Tài xế
                     for _ in range(5):
                         folium.Marker(
                             (start[0] + random.uniform(-0.012, 0.012), start[1] + random.uniform(-0.012, 0.012)),
@@ -188,10 +214,8 @@ with st.container():
                     p = pricing[vehicle_name]
                     price = p["base"] + d * p["per_km"] + t * p["per_min"]
                     if is_peak: price *= 1.3
-                    
                     weather_mult = 1.2 if "Mưa to" in weather else 1.1 if "Mưa nhẹ" in weather else 1.0
                     price *= weather_mult
-                    
                     if promo_code.strip().upper() == "GIAM10":
                         price *= 0.9
                     price = int(price / 1000) * 1000
@@ -203,7 +227,7 @@ with st.container():
                     <div style="background:#1e40af; padding:18px; border-radius:12px; border:2px solid #60a5fa;">
                         <b>👨‍✈️ {driver}</b> • ⭐ {rating}<br>
                         🚘 <b>{model}</b><br>
-                        📏 {round(d,2)} km • ⏱️ {(round(d,2)/30)//1:.2f} giờ {((round(d,2)/30)%1)*60:.2f} phút <br>
+                        📏 {d:.2f} km • ⏱️ {t:.1f} phút<br>
                         ⏰ Xe đến sau <b>{max(3, int(t//3))} phút</b>
                     </div>
                     """, unsafe_allow_html=True)
