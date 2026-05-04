@@ -56,6 +56,11 @@ st.markdown("""
         height: 60px !important;
         border: 2px solid #60a5fa !important;
     }
+    button[data-testid="baseButton-secondary"]:hover {
+        background-color: #0a2540 !important;
+        border-color: #bae6fd !important;
+        transform: scale(1.02);
+    }
 
     .price-big { font-size: 32px; font-weight: 700; color: #2563eb; }
 </style>
@@ -78,35 +83,40 @@ pricing = {
     "XE Ô TÔ ĐIỆN ⚡🚘": {"base": 35000, "per_km": 13000, "per_min": 700},
 }
 
-# ================= GEOCODE (FIX) =================
+# ================= GEOCODE (FIX DUY NHẤT) =================
 @lru_cache(maxsize=200)
 def geocode(address):
     if not address or len(address.strip()) < 3:
         return None
 
+    address = address.strip()
+
     try:
         headers = {'User-Agent': 'VivuXanhApp/1.0'}
 
-        params = {
-            "q": address,
-            "format": "json",
-            "limit": 1,
-            "countrycodes": "vn",
-            "viewbox": "106.55,10.65,106.85,10.95",
-            "bounded": 1
-        }
+        queries = [
+            address,
+            address + ", Ho Chi Minh City",
+            address + ", Vietnam"
+        ]
 
-        r = requests.get(
-            "https://nominatim.openstreetmap.org/search",
-            params=params,
-            headers=headers,
-            timeout=6
-        )
+        for q in queries:
+            r = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={
+                    "q": q,
+                    "format": "json",
+                    "limit": 1,
+                    "countrycodes": "vn"
+                },
+                headers=headers,
+                timeout=6
+            )
 
-        data = r.json()
+            data = r.json()
 
-        if data:
-            return (float(data[0]['lat']), float(data[0]['lon']))
+            if data:
+                return (float(data[0]['lat']), float(data[0]['lon']))
 
     except Exception as e:
         print("Geocode error:", e)
@@ -141,46 +151,91 @@ with map_placeholder:
 # ================= UI =================
 with st.container():
     st.markdown('<div class="bottom-panel">', unsafe_allow_html=True)
+    
+    c1, c2 = st.columns([1, 0.1])
+    with c1:
+        p1_input = st.text_input("📍 Điểm đón", placeholder="Nhập điểm đón", key="pickup")
+        p2_input = st.text_input("🏁 Điểm đến", placeholder="Nhập điểm đến", key="dropoff")
+    with c2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄", help="Hoán đổi"):
+            p1_input, p2_input = p2_input, p1_input
 
-    p1_input = st.text_input("📍 Điểm đón", placeholder="Ví dụ: Chợ Bến Thành Quận 1")
-    p2_input = st.text_input("🏁 Điểm đến", placeholder="Ví dụ: Landmark 81 Bình Thạnh")
+    st.caption("💡 Ví dụ: Chợ Bến Thành Quận 1, Landmark 81 Bình Thạnh")
 
-    st.caption("💡 Nhập rõ địa chỉ + quận để tăng độ chính xác")
+    st.markdown("**Chọn phương tiện**")
+    vehicle_options = list(pricing.keys())
+    if "selected_vehicle" not in st.session_state:
+        st.session_state.selected_vehicle = vehicle_options[0]
 
-    vehicle_name = st.selectbox("🚗 Chọn phương tiện", list(pricing.keys()))
+    cols = st.columns(4)
+    for i, vehicle in enumerate(vehicle_options):
+        with cols[i]:
+            btn_type = "primary" if vehicle == st.session_state.selected_vehicle else "secondary"
+            if st.button(vehicle, key=f"veh_{i}", type=btn_type, use_container_width=True):
+                st.session_state.selected_vehicle = vehicle
+                st.rerun()
 
-    if st.button("🚀 TÌM XE NGAY"):
-        start = geocode(p1_input)
-        end = geocode(p2_input)
+    vehicle_name = st.session_state.selected_vehicle
 
-        if not start:
-            st.error("❌ Không tìm thấy điểm đón")
-        elif not end:
-            st.error("❌ Không tìm thấy điểm đến")
-        else:
-            d, t, coords = route(start, end)
+    weather = random.choice(["☀️ Nắng", "⛅ Ít mây", "🌧️ Mưa nhẹ", "⛈️ Mưa to"])
+    col1, col2 = st.columns(2)
+    with col1:
+        is_peak = (7 <= datetime.now().hour <=9) or (17 <= datetime.now().hour <=20)
+        st.info(f"**Giờ cao điểm:** {'🔴 Có (+30%)' if is_peak else '🟢 Không'}")
+    with col2:
+        st.info(f"**Thời tiết:** {weather}")
 
-            if d is None:
-                st.error("❌ Không tính được tuyến đường")
+    promo_code = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
+    payment_method = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
+
+    if st.button("🚀 TÌM XE NGAY", type="secondary", use_container_width=True, key="find_ride"):
+        with st.spinner("🔍 Đang tìm tài xế gần bạn..."):
+            start = geocode(p1_input)
+            end = geocode(p2_input)
+
+            if not start:
+                st.error("❌ Không tìm thấy **Điểm đón**")
+            elif not end:
+                st.error("❌ Không tìm thấy **Điểm đến**")
             else:
-                m = folium.Map(location=start, zoom_start=15, tiles="cartodb positron")
+                d, t, coords = route(start, end)
 
-                folium.Marker(start, popup="📍 Điểm đón").add_to(m)
-                folium.Marker(end, popup="🏁 Điểm đến").add_to(m)
+                if d is None:
+                    st.error("❌ Không tính được tuyến đường")
+                else:
+                    m = folium.Map(location=start, zoom_start=15, tiles="cartodb positron")
 
-                folium.PolyLine(coords, color="#2563eb", weight=6).add_to(m)
+                    folium.Marker(start, popup="📍 Điểm đón").add_to(m)
+                    folium.Marker(end, popup="🏁 Điểm đến").add_to(m)
 
-                html(m._repr_html_(), height=580)
+                    if coords:
+                        folium.PolyLine(coords, color="#2563eb", weight=6).add_to(m)
 
-                p = pricing[vehicle_name]
-                price = int(p["base"] + d * p["per_km"] + t * p["per_min"])
+                    with map_placeholder:
+                        html(m._repr_html_(), height=580)
 
-                driver = random.choice(driver_names)
-                model = random.choice(vehicle_models[vehicle_name])
+                    p = pricing[vehicle_name]
+                    price = p["base"] + d * p["per_km"] + t * p["per_min"]
 
-                st.success("✅ Đã tìm thấy tài xế!")
-                st.markdown(f"👨‍✈️ {driver} | 🚘 {model}")
-                st.info(f"📏 {d:.2f} km | ⏱ {t:.1f} phút")
-                st.markdown(f"<h2 class='price-big'>💰 {price:,} VND</h2>", unsafe_allow_html=True)
+                    if promo_code.strip().upper() == "GIAM10":
+                        price *= 0.9
+
+                    price = int(price / 1000) * 1000
+
+                    driver = random.choice(driver_names)
+                    model = random.choice(vehicle_models[vehicle_name])
+                    rating = round(random.uniform(4.3, 5.0), 1)
+
+                    st.success("✅ Đã tìm thấy tài xế gần bạn!")
+                    st.markdown(f"""
+                    <div style="background:#1e40af; padding:20px; border-radius:12px;">
+                        👨‍✈️ {driver} • ⭐ {rating}<br>
+                        🚘 {model}<br>
+                        📏 {d:.2f} km • ⏱ {t:.1f} phút
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    st.markdown(f'<h2 class="price-big">💵 {price:,} VND</h2>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
