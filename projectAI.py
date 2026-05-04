@@ -8,42 +8,65 @@ from functools import lru_cache
 
 st.set_page_config(layout="wide", page_title="VivuXanh", initial_sidebar_state="collapsed")
 
-# ================= CSS - Màu xanh dương =================
+# ================= CSS - DARK BLUE THEME =================
 st.markdown("""
 <style>
+    .main {
+        background-color: #0a2540;
+    }
     .main .block-container {
         padding-top: 0.5rem;
         padding-bottom: 0;
         max-width: 100%;
     }
     .grab-header {
-        background: white;
+        background: #0a2540;
         padding: 12px 16px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid #1e40af;
         position: sticky;
         top: 0;
         z-index: 100;
+        color: white;
     }
     .bottom-panel {
-        background: white;
-        border-top: 1px solid #ddd;
+        background: #0f3460;
+        color: white;
+        border-top: 1px solid #1e40af;
         padding: 16px;
         border-radius: 20px 20px 0 0;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
         margin-top: 10px;
     }
-    .price-big {
-        font-size: 28px;
-        font-weight: 700;
-        color: #0066ff;
+    .stTextInput > div > div > input {
+        background-color: #1e40af;
+        color: white;
+        border: 1px solid #60a5fa;
     }
-    button[kind="primary"] {
-        background-color: #0066ff !important;
+    .stSelectbox > div > div {
+        background-color: #1e40af;
+        color: white;
+    }
+    .stButton > button {
+        background-color: #0066ff;
+        color: white;
+    }
+    .stButton > button:hover {
+        background-color: #1e90ff;
+    }
+    .price-big {
+        font-size: 32px;
+        font-weight: 700;
+        color: #60a5fa;
+    }
+    .stInfo, .stSuccess {
+        background-color: #1e40af !important;
+        color: white !important;
+        border: 1px solid #60a5fa;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ================= DATA =================
+# ================= DATA (giữ nguyên) =================
 driver_names = ["Nguyễn Văn Nam", "Trần Minh Tuấn", "Lê Hoàng Phúc", "Phạm Quốc Bảo", "Đỗ Anh Khoa", "Hoàng Minh Đức"]
 vehicle_models = {
     "XE MÁY 🏍️": ["Honda Vision", "Yamaha Sirius", "Honda Wave"],
@@ -96,19 +119,19 @@ def route(p1, p2):
 # ================= HEADER =================
 st.markdown("""
 <div class="grab-header">
-    <h1 style="margin:0; font-size:28px; color:#0066ff;">🚕 VivuXanh</h1>
+    <h1 style="margin:0; font-size:28px; color:#60a5fa;">🚕 VivuXanh</h1>
 </div>
 """, unsafe_allow_html=True)
 
 current_time = datetime.now()
 st.caption(f"**{current_time.strftime('%A, %d/%m/%Y')} • {current_time.strftime('%H:%M')}**")
 
-# ================= MAP CONTAINER =================
+# ================= MAP =================
 map_placeholder = st.empty()
 
-# Bản đồ mặc định ban đầu
+# Bản đồ mặc định
 def create_default_map():
-    m = folium.Map(location=[10.7769, 106.7009], zoom_start=13, tiles="cartodb positron")
+    m = folium.Map(location=[10.7769, 106.7009], zoom_start=13, tiles="cartodb dark_matter")
     return m
 
 with map_placeholder:
@@ -156,7 +179,7 @@ with st.container():
     promo_code = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
     payment_method = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"], index=0)
 
-    # ================= NÚT TÌM XE =================
+    # ================= TÌM XE =================
     if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True):
         with st.spinner("Đang tìm tài xế gần bạn..."):
             start = geocode(p1_input)
@@ -172,46 +195,44 @@ with st.container():
                 if d is None:
                     st.error("❌ Không tính được tuyến đường")
                 else:
-                    # ================= TẠO BẢN ĐỒ MỚI =================
-                    m = folium.Map(location=start, zoom_start=15, tiles="cartodb positron")
+                    # ================= BẢN ĐỒ =================
+                    m = folium.Map(location=start, zoom_start=15, tiles="cartodb dark_matter")
                     
                     # Điểm đón & đến
-                    folium.Marker(start, popup="📍 Điểm đón", icon=folium.Icon(color="blue", icon="map-marker")).add_to(m)
-                    folium.Marker(end, popup="🏁 Điểm đến", icon=folium.Icon(color="red", icon="flag")).add_to(m)
+                    folium.Marker(start, popup="📍 Điểm đón", 
+                                icon=folium.Icon(color="blue", icon="map-marker")).add_to(m)
+                    folium.Marker(end, popup="🏁 Điểm đến", 
+                                icon=folium.Icon(color="red", icon="flag")).add_to(m)
                     
-                    # Tuyến đường
                     if coords:
-                        folium.PolyLine(coords, color="#0066ff", weight=5, opacity=0.8).add_to(m)
-                    
-                    # === Tài xế xung quanh (tượng trưng) ===
-                    icon_color = "green" if "XE MÁY" in vehicle_name else "purple"
-                    for _ in range(5):  # 5 xe ngẫu nhiên xung quanh
-                        offset_lat = random.uniform(-0.015, 0.015)
-                        offset_lon = random.uniform(-0.015, 0.015)
+                        folium.PolyLine(coords, color="#60a5fa", weight=5, opacity=0.85).add_to(m)
+
+                    # Tài xế xung quanh (màu xanh dương)
+                    for _ in range(5):
+                        offset_lat = random.uniform(-0.012, 0.012)
+                        offset_lon = random.uniform(-0.012, 0.012)
                         folium.Marker(
                             (start[0] + offset_lat, start[1] + offset_lon),
                             popup="Tài xế gần đây",
-                            icon=folium.Icon(color=icon_color, icon="car" if "Ô TÔ" in vehicle_name else "motorcycle")
+                            icon=folium.Icon(color="lightblue", icon="car" if "Ô TÔ" in vehicle_name else "motorcycle")
                         ).add_to(m)
-                    
-                    # === Tài xế được chọn (to hơn) ===
+
+                    # Tài xế được chọn (to và nổi bật)
                     driver = random.choice(driver_names)
                     model = random.choice(vehicle_models[vehicle_name])
                     folium.Marker(
-                        (start[0] + 0.003, start[1] + 0.003),
+                        (start[0] + 0.004, start[1] + 0.004),
                         popup=f"👨‍✈️ {driver}\n🚘 {model}",
                         icon=folium.Icon(color="red", icon="user", prefix="fa")
                     ).add_to(m)
 
-                    # Hiển thị map
                     with map_placeholder:
                         html(m._repr_html_(), height=580)
 
                     # Tính tiền
                     p = pricing[vehicle_name]
                     price = p["base"] + d * p["per_km"] + t * p["per_min"]
-                    if is_peak_hour:
-                        price *= 1.3
+                    if is_peak_hour: price *= 1.3
                     weather_mult = 1.2 if "Mưa to" in weather else 1.1 if "Mưa nhẹ" in weather else 1.0
                     price *= weather_mult
                     if promo_code.strip().upper() == "GIAM10":
@@ -222,7 +243,7 @@ with st.container():
 
                     st.success("✅ Đã tìm thấy tài xế gần bạn!")
                     st.markdown(f"""
-                    <div style="background:#f0f7ff; padding:16px; border-radius:12px; border:2px solid #0066ff;">
+                    <div style="background:#1e40af; padding:18px; border-radius:12px; border:2px solid #60a5fa; color:white;">
                         <b>👨‍✈️ {driver}</b> • ⭐ {rating}<br>
                         🚘 <b>{model}</b><br>
                         📏 {round(d,2)} km • ⏱️ {round(t,1)} phút<br>
