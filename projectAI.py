@@ -203,7 +203,7 @@ with st.container():
                     <div style="background:#1e40af; padding:18px; border-radius:12px; border:2px solid #60a5fa;">
                         <b>👨‍✈️ {driver}</b> • ⭐ {rating}<br>
                         🚘 <b>{model}</b><br>
-                        📏 {round(d,2)} km • ⏱️ ({round(d,2)}/50)//60 giờ ({round(d,2)}/50)%60 phút <br>
+                        📏 {round(d,2)} km • ⏱️ {({round(d,2)}/50)//60} giờ {({round(d,2)}/50)%60} phút <br>
                         ⏰ Xe đến sau <b>{max(3, int(t//3))} phút</b>
                     </div>
                     """, unsafe_allow_html=True)
