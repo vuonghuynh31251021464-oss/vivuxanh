@@ -87,6 +87,7 @@ def geocode(address):
     if not address or len(address.strip()) < 3:
         return None
 
+    import time
     address = address.strip().lower()
 
     try:
@@ -94,10 +95,13 @@ def geocode(address):
             'User-Agent': 'VivuXanhApp/1.0 (contact: demo@email.com)'
         }
 
+        # 🔥 TĂNG KHẢ NĂNG TÌM
         queries = [
             address,
+            address + ", ho chi minh",
             address + ", ho chi minh city",
-            address + ", vietnam"
+            address + ", hcm",
+            address + ", vietnam",
         ]
 
         for q in queries:
@@ -108,8 +112,7 @@ def geocode(address):
                 params={
                     "q": q,
                     "format": "json",
-                    "limit": 1,
-                    "countrycodes": "vn"
+                    "limit": 1
                 },
                 headers=headers,
                 timeout=8
@@ -120,14 +123,13 @@ def geocode(address):
 
             data = r.json()
 
-            if data and len(data) > 0:
+            if data:
                 return (float(data[0]['lat']), float(data[0]['lon']))
 
     except Exception as e:
         print("Geocode error:", e)
 
     return None
-
 # ================= ROUTE =================
 def route(p1, p2):
     try:
