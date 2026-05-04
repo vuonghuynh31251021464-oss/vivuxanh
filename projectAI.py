@@ -88,20 +88,18 @@ def geocode(address):
         return None
 
     import time
-    address = address.strip().lower()
+    address = address.strip()
 
+    # ================= 1. NOMINATIM =================
     try:
         headers = {
             'User-Agent': 'VivuXanhApp/1.0 (contact: demo@email.com)'
         }
 
-        # 🔥 TĂNG KHẢ NĂNG TÌM
         queries = [
             address,
-            address + ", ho chi minh",
-            address + ", ho chi minh city",
-            address + ", hcm",
-            address + ", vietnam",
+            address + ", Ho Chi Minh",
+            address + ", Vietnam"
         ]
 
         for q in queries:
@@ -115,20 +113,36 @@ def geocode(address):
                     "limit": 1
                 },
                 headers=headers,
-                timeout=8
+                timeout=6
             )
 
-            if r.status_code != 200:
-                continue
+            if r.status_code == 200:
+                data = r.json()
+                if data:
+                    return (float(data[0]['lat']), float(data[0]['lon']))
+    except:
+        pass
 
-            data = r.json()
+    # ================= 2. FALLBACK: Photon (🔥 CỨU MẠNG) =================
+    try:
+        r = requests.get(
+            "https://photon.komoot.io/api/",
+            params={
+                "q": address,
+                "limit": 1
+            },
+            timeout=6
+        )
 
-            if data:
-                return (float(data[0]['lat']), float(data[0]['lon']))
+        data = r.json()
 
-    except Exception as e:
-        print("Geocode error:", e)
+        if data.get("features"):
+            coords = data["features"][0]["geometry"]["coordinates"]
+            return (coords[1], coords[0])  # lat, lon
+    except:
+        pass
 
+    # ================= 3. FAIL =================
     return None
 # ================= ROUTE =================
 def route(p1, p2):
