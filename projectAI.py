@@ -133,17 +133,19 @@ with st.container():
 
     vehicle_name = st.session_state.selected_vehicle
 
+    # === THỜI TIẾT - Đưa ra ngoài để dùng được ở dưới ===
+    weather = random.choice(["☀️ Nắng", "⛅ Ít mây", "🌧️ Mưa nhẹ", "⛈️ Mưa to"])
     col1, col2 = st.columns(2)
     with col1:
         is_peak = (7 <= datetime.now().hour <=9) or (17 <= datetime.now().hour <=20)
         st.info(f"**Giờ cao điểm:** {'🔴 Có (+30%)' if is_peak else '🟢 Không'}")
     with col2:
-        st.info(f"**Thời tiết:** {random.choice(['☀️ Nắng','⛅ Ít mây','🌧️ Mưa nhẹ','⛈️ Mưa to'])}")
+        st.info(f"**Thời tiết:** {weather}")
 
     promo_code = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
     payment_method = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
 
-    # ================= LOGIC TÌM XE =================
+    # ================= TÌM XE =================
     if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True):
         with st.spinner("Đang tìm tài xế gần bạn..."):
             start = geocode(p1_input)
@@ -159,20 +161,18 @@ with st.container():
                 if d is None:
                     st.error("❌ Không tính được tuyến đường")
                 else:
-                    # Vẽ bản đồ
                     m = folium.Map(location=start, zoom_start=15, tiles="cartodb dark_matter")
                     folium.Marker(start, popup="📍 Điểm đón", icon=folium.Icon(color="blue")).add_to(m)
                     folium.Marker(end, popup="🏁 Điểm đến", icon=folium.Icon(color="red")).add_to(m)
                     if coords:
                         folium.PolyLine(coords, color="#60a5fa", weight=5, opacity=0.85).add_to(m)
 
-                    # Tài xế xung quanh + tài xế được chọn
                     for _ in range(5):
                         folium.Marker(
                             (start[0] + random.uniform(-0.012, 0.012), start[1] + random.uniform(-0.012, 0.012)),
                             icon=folium.Icon(color="lightblue", icon="car" if "Ô TÔ" in vehicle_name else "motorcycle")
                         ).add_to(m)
-                    
+
                     driver = random.choice(driver_names)
                     model = random.choice(vehicle_models[vehicle_name])
                     folium.Marker(
@@ -188,8 +188,10 @@ with st.container():
                     p = pricing[vehicle_name]
                     price = p["base"] + d * p["per_km"] + t * p["per_min"]
                     if is_peak: price *= 1.3
+                    
                     weather_mult = 1.2 if "Mưa to" in weather else 1.1 if "Mưa nhẹ" in weather else 1.0
                     price *= weather_mult
+                    
                     if promo_code.strip().upper() == "GIAM10":
                         price *= 0.9
                     price = int(price / 1000) * 1000
