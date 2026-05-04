@@ -133,8 +133,8 @@ with st.container():
     
     col_input1, col_input2 = st.columns([1, 0.08])
     with col_input1:
-        p1_input = st.text_input("📍 Điểm đón", placeholder="Bến Thành, Quận 1...", key="pickup")
-        p2_input = st.text_input("🏁 Điểm đến", placeholder="Landmark 81...", key="dropoff")
+        p1_input = st.text_input("📍 Điểm đón", placeholder="Nhập điểm đón", key="pickup")
+        p2_input = st.text_input("🏁 Điểm đến", placeholder="Nhập điểm đến", key="dropoff")
     
     with col_input2:
         st.markdown("<br>", unsafe_allow_html=True)
