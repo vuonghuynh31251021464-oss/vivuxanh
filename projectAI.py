@@ -8,7 +8,7 @@ from functools import lru_cache
 
 st.set_page_config(layout="wide", page_title="VivuXanh", initial_sidebar_state="collapsed")
 
-# ================= CSS - NÚT MÀU SÁNG =================
+# ================= CSS MỚI - NÚT SÁNG + HOVER ĐẬM =================
 st.markdown("""
 <style>
     .main { background-color: #0a2540; }
@@ -29,38 +29,39 @@ st.markdown("""
     /* Nút chọn xe - Mặc định sáng */
     div[data-testid="stButton"] button {
         width: 100% !important;
-        height: 70px !important;
+        height: 72px !important;
         font-size: 15px;
         font-weight: 600;
         border-radius: 12px;
         border: 2px solid #60a5fa;
         background-color: #1e90ff;
         color: white;
-        transition: all 0.3s;
+        transition: all 0.3s ease;
     }
     div[data-testid="stButton"] button:hover {
         background-color: #0a2540;
-        border-color: #60a5fa;
-        transform: scale(1.05);
+        border-color: #bae6fd;
+        transform: scale(1.04);
     }
     div[data-testid="stButton"] button[kind="primary"] {
         background-color: #0a2540 !important;
         border: 3px solid #60a5fa !important;
-        box-shadow: 0 0 10px rgba(96, 165, 250, 0.6);
+        box-shadow: 0 0 12px rgba(96, 165, 250, 0.6);
     }
 
-    /* Nút TÌM XE */
-    .find-button button {
+    /* Nút TÌM XE - Mặc định sáng */
+    button[data-testid="baseButton-secondary"] {
         background-color: #1e90ff !important;
         color: white !important;
         font-size: 18px;
         font-weight: bold;
         height: 60px !important;
-        border: 2px solid #60a5fa;
+        border: 2px solid #60a5fa !important;
     }
-    .find-button button:hover {
+    button[data-testid="baseButton-secondary"]:hover {
         background-color: #0a2540 !important;
-        border-color: #60a5fa;
+        border-color: #bae6fd !important;
+        transform: scale(1.02);
     }
 
     .price-big { font-size: 32px; font-weight: 700; color: #60a5fa; }
@@ -160,9 +161,8 @@ with st.container():
     promo_code = st.text_input("🎟️ Mã khuyến mãi (GIAM10)", placeholder="Nhập mã...")
     payment_method = st.selectbox("💳 Thanh toán", ["Tiền mặt", "Momo", "ZaloPay", "VNPay"])
 
-    # Nút Tìm Xe
-    st.markdown('<div class="find-button">', unsafe_allow_html=True)
-    if st.button("🚀 TÌM XE NGAY", type="primary", use_container_width=True):
+    # ================= NÚT TÌM XE =================
+    if st.button("🚀 TÌM XE NGAY", type="secondary", use_container_width=True, key="find_ride"):
         with st.spinner("🔍 Đang tìm tài xế gần bạn..."):
             start = geocode(p1_input)
             end = geocode(p2_input)
@@ -177,12 +177,14 @@ with st.container():
                 if d is None:
                     st.error("❌ Không tính được tuyến đường")
                 else:
+                    # Cập nhật bản đồ
                     m = folium.Map(location=start, zoom_start=15, tiles="cartodb dark_matter")
                     folium.Marker(start, popup="📍 Điểm đón", icon=folium.Icon(color="blue")).add_to(m)
                     folium.Marker(end, popup="🏁 Điểm đến", icon=folium.Icon(color="red")).add_to(m)
                     if coords:
                         folium.PolyLine(coords, color="#60a5fa", weight=5, opacity=0.85).add_to(m)
 
+                    # Tài xế xung quanh
                     for _ in range(5):
                         folium.Marker(
                             (start[0] + random.uniform(-0.012, 0.012), start[1] + random.uniform(-0.012, 0.012)),
@@ -200,6 +202,7 @@ with st.container():
                     with map_placeholder:
                         html(m._repr_html_(), height=580)
 
+                    # Tính tiền
                     p = pricing[vehicle_name]
                     price = p["base"] + d * p["per_km"] + t * p["per_min"]
                     if is_peak: price *= 1.3
@@ -213,10 +216,11 @@ with st.container():
 
                     st.success("✅ Đã tìm thấy tài xế gần bạn!")
                     st.markdown(f"""
-                    <div style="background:#1e40af; padding:20px; border-radius:12px; border:2px solid #60a5fa; font-size:18px;">
+                    <div style="background:#1e40af; padding:20px; border-radius:12px; border:2px solid #60a5fa;">
                         <b>👨‍✈️ {driver}</b> • ⭐ {rating}<br>
                         🚘 <b>{model}</b><br><br>
-                        📏 <b>{d:.2f} km</b> • ⏱️ <b>{t:.1f} phút</b>
+                        📏 <b>{d:.2f} km</b> • ⏱️ <b>{t:.1f} phút</b><br>
+                        ⏰ Xe đến sau <b>{max(3, int(t//3))} phút</b>
                     </div>
                     """, unsafe_allow_html=True)
                     
