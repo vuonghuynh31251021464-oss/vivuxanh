@@ -84,18 +84,33 @@ pricing = {
 # ================= GEOCODE =================
 @lru_cache(maxsize=100)
 def geocode(address):
-    if not address: return None
+    if not address:
+        return None
     try:
         headers = {'User-Agent': 'VivuXanhApp/1.0'}
+
+        # thử tìm nguyên bản trước (KHÔNG ép HCM)
         r = requests.get(
             "https://nominatim.openstreetmap.org/search",
-            params={"q": address + ", Ho Chi Minh City", "format": "json", "limit": 1},
+            params={"q": address, "format": "json", "limit": 1},
             headers=headers, timeout=6
         )
         data = r.json()
+
+        # nếu không có → fallback thêm HCM
+        if not data:
+            r = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": address + ", Ho Chi Minh City", "format": "json", "limit": 1},
+                headers=headers, timeout=6
+            )
+            data = r.json()
+
         if data:
             return (float(data[0]['lat']), float(data[0]['lon']))
-    except: pass
+
+    except:
+        pass
     return None
 
 # ================= ROUTE =================
